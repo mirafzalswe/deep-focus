@@ -1,5 +1,7 @@
 // Модуль tray (§9.1): значок в трее, подсказка с остатком, меню (открыть, старт/пауза, таймер, интерактивность,
 // поверх окон, выход). Левый клик — открыть главное окно.
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions, type NativeImage } from 'electron';
 import type { TimerSnapshot } from '../../shared/types';
 import type { MainContext } from '../context';
@@ -28,7 +30,16 @@ const TONE_RGB: Record<TrayTone, [number, number, number]> = {
   paused: [0xc9, 0xa2, 0x5a],
 };
 
-/** Значок рисуется кодом (кольцо, в работе — с точкой), чтобы не зависеть от файлов ресурсов. */
+/** Файл значка из resources/tray (в сборке — resources/icons); нет файла — рисуем кодом. */
+function fileIcon(tone: TrayTone): NativeImage | null {
+  const dir = app.isPackaged ? join(process.resourcesPath, 'icons') : join(app.getAppPath(), 'resources', 'tray');
+  const file = join(dir, `tray-${tone}.png`);
+  if (!existsSync(file)) return null;
+  const img = nativeImage.createFromPath(file);
+  return img.isEmpty() ? null : img;
+}
+
+/** Запасной значок, рисуется кодом (кольцо, в работе — с точкой). */
 function drawIcon(tone: TrayTone): NativeImage {
   const size = 32;
   const buf = Buffer.alloc(size * size * 4);
@@ -58,7 +69,7 @@ export function registerTray(ctx: MainContext): void {
   const icons = new Map<TrayTone, NativeImage>();
   const icon = (tone: TrayTone) => {
     let img = icons.get(tone);
-    if (!img) icons.set(tone, (img = drawIcon(tone)));
+    if (!img) icons.set(tone, (img = fileIcon(tone) ?? drawIcon(tone)));
     return img;
   };
 

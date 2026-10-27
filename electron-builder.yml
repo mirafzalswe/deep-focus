@@ -1,0 +1,49 @@
+# Упаковка Deep Focus (R149): NSIS-установщик для текущего пользователя, без прав администратора.
+appId: com.deepfocus.app
+productName: Deep Focus
+copyright: Deep Focus
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+# better-sqlite3 поставляется с готовым N-API prebuild (Electron 45 и Node 24), пересборка не нужна
+npmRebuild: false
+asar: true
+asarUnpack:
+  - '**/*.node'
+extraResources:
+  - from: assets/sounds
+    to: assets/sounds
+    filter:
+      - '**/*'
+  - from: resources/tray
+    to: icons
+    filter:
+      - '*.png'
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: resources/icon.ico
+  # установщик без подписи кода: SmartScreen предупредит (docs/limitations.md)
+  signAndEditExecutable: false
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Deep Focus
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  # деинсталлятор сначала просит приложение вернуть настройки прокси (HKCU), см. build/installer.nsh
+  include: build/installer.nsh
+# Источник обновлений — GitHub Releases. Впиши владельца и репозиторий здесь и в src/main/updater/source.ts.
+publish:
+  provider: github
+  owner: '[GITHUB_OWNER]'
+  repo: '[GITHUB_REPO]'

@@ -7,6 +7,7 @@ import { Card, Field, Segmented } from '../../../shared/ui';
 import { Toggle } from '../Timer/controls';
 import { DataCard } from './DataCard';
 import { HotkeysCard } from './HotkeysCard';
+import { UpdatesCard } from './UpdatesCard';
 
 type QuitBehavior = AppSettings['general']['quitBehavior'];
 type NumericGoal = 'dailyMinutes' | 'dailySessions' | 'weeklyMinutes';
@@ -177,6 +178,8 @@ export default function GeneralTab() {
           </Field>
         </div>
       </Card>
+
+      <UpdatesCard />
 
       <DataCard />
     </div>
