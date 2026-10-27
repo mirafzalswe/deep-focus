@@ -1,0 +1,27 @@
+import type { Messages } from '../ru';
+
+export const settings: Messages['settings'] = {
+  title: 'Settings',
+  generalTab: 'General',
+  appearance: 'Appearance',
+  theme: 'Theme',
+  themeDark: 'Dark',
+  themeLight: 'Light',
+  themeSystem: 'System',
+  language: 'Language',
+  languageRu: 'Русский',
+  languageEn: 'English',
+  data: 'Data',
+  dataLocalOnly: 'All data stays on this computer. No account needed.',
+  logPath: 'Error log',
+  openDataFolder: 'Open data folder',
+  exportBackup: 'Save backup',
+  importBackup: 'Restore from backup',
+  backupSaved: 'Backup saved',
+  backupRestored: 'Settings restored from backup',
+  backupInvalid: 'This file is not a Deep Focus backup — current settings were not changed',
+  deleteAllData: 'Delete all data',
+  deleteAllDataConfirm: 'Delete all tasks, history, presets and settings? This cannot be undone; the app will restart.',
+  invalidValue: 'Invalid value: {field}',
+  dbRecovered: 'The database file was damaged. It was kept as {file} and a new database was created.',
+};

@@ -1,0 +1,1 @@
+export { registerTasks } from './ipc';

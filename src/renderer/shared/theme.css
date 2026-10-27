@@ -1,0 +1,81 @@
+/* Дизайн-токены Deep Focus — единственное место с цветами (§10.1).
+   Графитовый фон, приглушённые синий и зелёный, контрастный текст, минимум ярких цветов.
+   Тема выбирается атрибутом data-theme="dark|light" на <html> (см. shared/settings.tsx). */
+@import 'tailwindcss';
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --df-bg: #16191d;
+  --df-surface: #1d2126;
+  --df-surface-2: #252a30;
+  --df-line: #2f353c;
+  --df-fg: #e6e9ec;
+  --df-muted: #9aa3ad;
+  --df-faint: #6c757f;
+  --df-accent: #7a9cc2; /* приглушённый синий */
+  --df-accent-fg: #0f1418;
+  --df-ok: #74a68b; /* приглушённый зелёный */
+  --df-warn: #c4a56e;
+  --df-danger: #c47b7b;
+  --df-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --df-bg: #eef0f2;
+  --df-surface: #f8f9fa;
+  --df-surface-2: #e4e7ea;
+  --df-line: #d3d8dd;
+  --df-fg: #1b1f23;
+  --df-muted: #56606a;
+  --df-faint: #7d8790;
+  --df-accent: #44688f;
+  --df-accent-fg: #ffffff;
+  --df-ok: #3f7458;
+  --df-warn: #8c6a2c;
+  --df-danger: #9c4646;
+  --df-shadow: 0 1px 2px rgb(20 30 40 / 0.08);
+}
+
+@theme inline {
+  --color-bg: var(--df-bg);
+  --color-surface: var(--df-surface);
+  --color-surface-2: var(--df-surface-2);
+  --color-line: var(--df-line);
+  --color-fg: var(--df-fg);
+  --color-muted: var(--df-muted);
+  --color-faint: var(--df-faint);
+  --color-accent: var(--df-accent);
+  --color-accent-fg: var(--df-accent-fg);
+  --color-ok: var(--df-ok);
+  --color-warn: var(--df-warn);
+  --color-danger: var(--df-danger);
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--df-bg);
+    color: var(--df-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  input,
+  textarea {
+    user-select: text;
+  }
+  :focus-visible {
+    outline: 2px solid var(--df-accent);
+    outline-offset: 2px;
+  }
+}

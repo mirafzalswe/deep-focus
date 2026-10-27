@@ -1,0 +1,1 @@
+export { registerHotkeys } from './ipc';

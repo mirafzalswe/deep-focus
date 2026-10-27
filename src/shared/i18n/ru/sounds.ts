@@ -1,0 +1,21 @@
+export const sounds = {
+  title: 'Звуки',
+  tabTitle: 'Звуки',
+  lib: {
+    rain: 'Дождь',
+    rainWindow: 'Дождь по окну',
+    waves: 'Морские волны',
+    wind: 'Ветер',
+    forest: 'Лес',
+    birds: 'Птицы',
+    stream: 'Ручей',
+    river: 'Река',
+    thunderstorm: 'Гроза',
+    fireplace: 'Камин',
+    coffeeShop: 'Кофейня',
+    quietRoom: 'Тихое помещение',
+    whiteNoise: 'Белый шум',
+    pinkNoise: 'Розовый шум',
+    brownNoise: 'Коричневый шум',
+  },
+};

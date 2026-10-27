@@ -1,0 +1,1 @@
+export { registerBlocker } from './ipc';
