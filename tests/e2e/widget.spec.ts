@@ -20,6 +20,10 @@ function win32(args: string[]): {
   foreignForeground?: boolean;
   foreignWindow?: boolean;
   aboveForeign?: boolean;
+  via?: 'input' | 'wm_hotkey';
+  lockScreen?: boolean;
+  hotkeyTaken?: boolean;
+  delivered?: boolean;
 } {
   const out = execFileSync(
     'powershell.exe',
@@ -30,7 +34,24 @@ function win32(args: string[]): {
 }
 
 const styles = (hwnd: string) => win32(['-Hwnd', hwnd]).window!;
-const pressKeys = (combo: string) => win32(['-Keys', combo]);
+/**
+ * Нажать глобальное сочетание. Обычно — синтетическим вводом. Если ввод не доходит до рабочего стола
+ * (экран заблокирован), win32.ps1 доказывает, что сочетание занято в системе нашим процессом, и доставляет
+ * WM_HOTKEY в окна приложения — дальше тот же путь globalShortcut → HotkeyManager → WidgetManager.
+ */
+async function pressKeys(app: ElectronApplication, hwnd: string, combo: string): Promise<void> {
+  // pid самого main-процесса Electron (app.process() — процесс запуска, у него нет окон)
+  const pid = await app.evaluate(() => process.pid);
+  const res = win32(['-Keys', combo, '-TargetPid', String(pid), '-Hwnd', hwnd]);
+  if (res.via === 'wm_hotkey') {
+    expect(res.hotkeyTaken, `${combo} не зарегистрировано в системе`).toBe(true);
+    expect(res.delivered, `${combo}: WM_HOTKEY не изменил окно виджета`).toBe(true);
+    test.info().annotations.push({
+      type: 'warning',
+      description: `${combo}: ввод не доходит до рабочего стола (экран заблокирован: ${res.lockScreen}) — доставлено через WM_HOTKEY`,
+    });
+  }
+}
 
 /** Запуск с отдельной папкой данных; главное окно ищем по адресу — виджет может открыться раньше него. */
 async function launch(userData: string): Promise<{ app: ElectronApplication; page: Page }> {
@@ -130,19 +151,19 @@ test('виджет: поверх окон после фокуса чужого �
     // Click-through: из главного окна, затем горячей клавишей Ctrl+Alt+I обратно
     await page.evaluate(() => window.deepFocus.widget.setClickThrough(true));
     expect(styles(w.hwnd)).toMatchObject({ transparent: true, topmost: true });
-    pressKeys('ctrl+alt+i');
+    await pressKeys(app, w.hwnd, 'ctrl+alt+i');
     await expect.poll(() => page.evaluate(async () => (await window.deepFocus.settings.get()).widget.clickThrough)).toBe(false);
     expect(styles(w.hwnd).transparent).toBe(false);
-    pressKeys('ctrl+alt+i');
+    await pressKeys(app, w.hwnd, 'ctrl+alt+i');
     await expect.poll(() => styles(w.hwnd).transparent).toBe(true);
     await page.evaluate(() => window.deepFocus.widget.setClickThrough(false));
     expect(styles(w.hwnd).transparent).toBe(false);
 
     // Показ/скрытие горячей клавишей Ctrl+Alt+W и из главного окна не меняет состояние таймера
-    pressKeys('ctrl+alt+w');
+    await pressKeys(app, w.hwnd, 'ctrl+alt+w');
     await expect.poll(async () => (await widgetWindow(app))?.visible).toBe(false);
     expect(styles(w.hwnd).visible).toBe(false);
-    pressKeys('ctrl+alt+w');
+    await pressKeys(app, w.hwnd, 'ctrl+alt+w');
     await expect.poll(async () => (await widgetWindow(app))?.visible).toBe(true);
     await page.evaluate(() => window.deepFocus.widget.toggle());
     await page.evaluate(() => window.deepFocus.widget.toggle());
