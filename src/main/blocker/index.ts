@@ -1,1 +1,10 @@
-export { registerBlocker } from './ipc';
+export { registerBlocker, CLEANUP_ARG, CONSENT_KEY, SNAPSHOT_KEY } from './ipc';
+export { BlockerController, REASON } from './BlockerController';
+export type { BlockerDeps, BlockerStore, PacHost } from './BlockerController';
+export { normalizeDomain, isNormalizedDomain, SYSTEM_DOMAINS } from './domain';
+export { activeDomainsFor, activeRulesFor, isScheduleActive } from './rules';
+export { buildPac } from './pac';
+export type { Upstream } from './pac';
+export { PacServer, isOurPacUrl } from './PacServer';
+export { createWindowsSystemProxy } from './SystemProxy';
+export type { ProxySettings, SystemProxy } from './SystemProxy';

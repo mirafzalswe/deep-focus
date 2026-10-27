@@ -2,6 +2,7 @@
 // новое поле в AppSettings без проверки здесь = ошибка типов.
 import { INTERVAL_MAX_MIN, INTERVAL_MIN_MIN } from '../../shared/defaults';
 import type { AppSettings, BlockRule, SoundPreset, TimerPreset } from '../../shared/types';
+import { isNormalizedDomain } from '../blocker/domain';
 import { v, type Check } from '../validate';
 
 export type SettingsSchema = { [S in keyof AppSettings]: { [K in keyof AppSettings[S]]-?: Check } };
@@ -109,7 +110,8 @@ const hhmm = v.str({ pattern: /^([01]\d|2[0-3]):[0-5]\d$/ });
 
 export const isBlockRule: Check = v.object({
   id: v.id(),
-  pattern: v.str({ min: 1, max: 253 }),
+  // только уже нормализованный домен (Т04): бэкап/база не могут подсунуть кавычки, *, путь, IP
+  pattern: (x: unknown) => typeof x === 'string' && x.length <= 253 && isNormalizedDomain(x),
   category: v.oneOf('social', 'video', 'messenger', 'news', 'entertainment', 'custom'),
   enabled: v.bool(),
   duringFocus: v.bool(),

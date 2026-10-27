@@ -68,11 +68,18 @@ export const IPC = {
     projects: 'tasks:projects',
     saveProject: 'tasks:saveProject',
     deleteProject: 'tasks:deleteProject',
+    totals: 'tasks:totals',
+    pendingOutcome: 'tasks:pendingOutcome',
+    setOutcome: 'tasks:setOutcome',
+    dismissOutcome: 'tasks:dismissOutcome',
+    /** рассылка: OutcomePrompt | null */
+    outcomeChanged: 'tasks:outcomeChanged',
   },
   analytics: {
     summary: 'analytics:summary',
     history: 'analytics:history',
     goals: 'analytics:goals',
+    achievements: 'analytics:achievements',
     /** рассылка: без данных — «пересчитай» */
     changed: 'analytics:changed',
   },
