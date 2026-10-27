@@ -20,6 +20,13 @@ export const IPC = {
     setClickThrough: 'widget:setClickThrough',
     setAlwaysOnTop: 'widget:setAlwaysOnTop',
     snapTo: 'widget:snapTo',
+    isVisible: 'widget:isVisible',
+    /** окно виджета → main: показать контекстное меню виджета */
+    showMenu: 'widget:showMenu',
+    /** окно виджета → main: новый размер от уголка ресайза (width, height) */
+    resize: 'widget:resize',
+    /** рассылка: boolean — виден ли виджет */
+    visibilityChanged: 'widget:visibilityChanged',
   },
   blocker: {
     status: 'blocker:status',
@@ -29,6 +36,8 @@ export const IPC = {
     requestUnlock: 'blocker:requestUnlock',
     confirmUnlock: 'blocker:confirmUnlock',
     recheck: 'blocker:recheck',
+    /** экран согласия пройден (§4.8.1): запомнить согласие и включить блокировку. Т04 */
+    giveConsent: 'blocker:giveConsent',
     /** рассылка: BlockerStatus */
     statusChanged: 'blocker:statusChanged',
   },

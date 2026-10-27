@@ -1,0 +1,63 @@
+/* Плавающий виджет (§3.4, §3.5): фон рисует сам виджет с widget.backgroundOpacity,
+   цифры и прогресс непрозрачные, с ореолом цвета подложки — читаются на любом фоне под окном. */
+
+html,
+body {
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.widget-root {
+  container-type: size;
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.widget-halo {
+  text-shadow:
+    0 0 1px var(--df-bg),
+    0 0 3px var(--df-bg),
+    0 0 8px var(--df-bg),
+    0 1px 12px var(--df-bg);
+}
+
+.widget-halo-box {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--df-bg) 70%, transparent),
+    0 0 6px var(--df-bg);
+}
+
+.widget-time {
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.widget-root[data-mode='compact'] .widget-time {
+  font-size: min(58cqh, 22cqw);
+}
+
+.widget-root[data-mode='standard'] .widget-time {
+  font-size: min(40cqh, 19cqw);
+}
+
+.widget-root[data-mode='expanded'] .widget-time {
+  font-size: min(28cqh, 17cqw);
+}
+
+/* Единственная анимация виджета — плавный ход прогресса */
+.widget-progress-fill {
+  transition: width 1s linear;
+}
+
+.widget-grip {
+  opacity: 0;
+}
+
+.widget-grip:hover,
+.widget-grip:active {
+  opacity: 1;
+}

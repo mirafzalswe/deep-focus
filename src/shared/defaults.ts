@@ -7,6 +7,7 @@ import type {
   SoundDef,
   SoundPreset,
   TimerPreset,
+  WidgetDisplayMode,
 } from './types';
 
 export const BUILTIN_TIMER_PRESETS: readonly TimerPreset[] = [
@@ -161,3 +162,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
     quitBehavior: 'ask',
   },
 };
+
+/** Виджет: минимальный размер окна на режим (меньше — цифры не помещаются) и размер при смене режима (§3.7). */
+export const WIDGET_MIN_SIZE = {
+  compact: { width: 120, height: 40 },
+  standard: { width: 180, height: 76 },
+  expanded: { width: 220, height: 124 },
+} as const satisfies Record<WidgetDisplayMode, { width: number; height: number }>;
+
+export const WIDGET_DEFAULT_SIZE = {
+  compact: { width: 168, height: 52 },
+  standard: { width: 224, height: 96 },
+  expanded: { width: 288, height: 152 },
+} as const satisfies Record<WidgetDisplayMode, { width: number; height: number }>;
+
+/** Через сколько после остановки сессии виджет прячется, если включён показ при старте сессии (§3.15). */
+export const WIDGET_IDLE_HIDE_MS = 5000;
