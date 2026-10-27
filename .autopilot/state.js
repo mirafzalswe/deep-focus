@@ -2,7 +2,7 @@ window.STATE =
 {
   "version": 2,
   "slug": "deep-focus",
-  "dir": "2026-10-27-deep-focus--wip",
+  "dir": "2026-10-27-deep-focus",
   "title": "Deep Focus — десктоп-таймер глубокой концентрации",
   "mode": "semi",
   "depth": "normal",
@@ -11,10 +11,10 @@ window.STATE =
   "memoryFile": "AGENTS.md",
   "memoryOwner": "autopilot",
   "skillDir": "C:/Users/mirafzal.bahodirov/.claude/skills/autopilot",
-  "baseCommit": null,
+  "baseCommit": "2b06662",
   "startedAt": "2026-10-27T10:11:33+05:00",
-  "updatedAt": "2026-10-27T10:32:30+05:00",
-  "finishedAt": null,
+  "updatedAt": "2026-10-27T14:39:19+05:00",
+  "finishedAt": "2026-10-27T14:39:19+05:00",
   "stages": [
     {
       "id": "preflight",
@@ -42,28 +42,35 @@ window.STATE =
     },
     {
       "id": "plan",
-      "status": "active",
-      "startedAt": "2026-10-27T10:30:17+05:00"
+      "status": "done",
+      "startedAt": "2026-10-27T10:30:17+05:00",
+      "finishedAt": "2026-10-27T10:33:07+05:00"
     },
     {
       "id": "build",
-      "status": "pending"
+      "status": "done",
+      "startedAt": "2026-10-27T10:33:07+05:00",
+      "finishedAt": "2026-10-27T13:01:30+05:00"
     },
     {
       "id": "review",
-      "status": "pending"
+      "status": "done",
+      "startedAt": "2026-10-27T13:01:30+05:00",
+      "finishedAt": "2026-10-27T13:41:25+05:00"
     },
     {
       "id": "final",
-      "status": "pending"
+      "status": "done",
+      "startedAt": "2026-10-27T13:41:25+05:00",
+      "finishedAt": "2026-10-27T14:39:19+05:00"
     }
   ],
   "requirements": {
     "total": 159,
-    "done": 0,
-    "inTicket": 154,
+    "done": 152,
+    "inTicket": 0,
     "inSpec": 0,
-    "placeholder": 0,
+    "placeholder": 2,
     "deferred": 1,
     "dropped": 4
   },
@@ -104,9 +111,16 @@ window.STATE =
       ],
       "review": "да — фундамент",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T10:33:08+05:00",
+      "finishedAt": "2026-10-27T11:09:03+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 27,
+        "failed": 0
+      },
+      "commit": "b32db12"
     },
     {
       "id": "02",
@@ -155,9 +169,16 @@ window.STATE =
       ],
       "review": "нет",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:04:31+05:00",
+      "finishedAt": "2026-10-27T11:22:00+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 78,
+        "failed": 0
+      },
+      "commit": "0199439"
     },
     {
       "id": "03",
@@ -210,9 +231,19 @@ window.STATE =
       ],
       "review": "нет",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:04:31+05:00",
+      "finishedAt": "2026-10-27T13:01:29+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 1,
+      "repairFindings": [
+        "e2e widget.spec:82 красный: Ctrl+Alt+I не переключает click-through после Т07"
+      ],
+      "tests": {
+        "passed": 277,
+        "failed": 0
+      },
+      "commit": "db5ee09"
     },
     {
       "id": "04",
@@ -259,9 +290,16 @@ window.STATE =
       ],
       "review": "нет",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:22:01+05:00",
+      "finishedAt": "2026-10-27T11:53:34+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 223,
+        "failed": 0
+      },
+      "commit": "fd647cc"
     },
     {
       "id": "05",
@@ -304,9 +342,16 @@ window.STATE =
       ],
       "review": "нет",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:22:01+05:00",
+      "finishedAt": "2026-10-27T11:44:22+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 187,
+        "failed": 0
+      },
+      "commit": "c466079"
     },
     {
       "id": "06",
@@ -350,15 +395,25 @@ window.STATE =
       ],
       "review": "нет",
       "model": "обычная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:40:46+05:00",
+      "finishedAt": "2026-10-27T11:55:50+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 223,
+        "failed": 0
+      },
+      "commit": "85701bf"
     },
     {
       "id": "07",
       "title": "Горячие клавиши, уведомления, трей, жизненный цикл, General и данные",
       "requirements": [
         "R17",
+        "R56",
+        "R105",
+        "R106",
         "R111",
         "R112",
         "R113",
@@ -395,9 +450,16 @@ window.STATE =
       ],
       "review": "да — удаление данных",
       "model": "сильная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T11:55:52+05:00",
+      "finishedAt": "2026-10-27T12:27:04+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 270,
+        "failed": 0
+      },
+      "commit": "319ac3d"
     },
     {
       "id": "08",
@@ -428,18 +490,120 @@ window.STATE =
       ],
       "review": "нет",
       "model": "обычная",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-10-27T12:22:43+05:00",
+      "finishedAt": "2026-10-27T12:51:37+05:00",
       "retries": 0,
-      "repairs": 0
+      "repairs": 0,
+      "tests": {
+        "passed": 277,
+        "failed": 0
+      },
+      "commit": "4c23b9e"
+    },
+    {
+      "id": "F1",
+      "title": "Правки по ревью ветки",
+      "requirements": [
+        "R67",
+        "R69",
+        "R141",
+        "R133",
+        "R137",
+        "R148",
+        "R30",
+        "R54",
+        "R153"
+      ],
+      "blockedBy": [],
+      "wave": 6,
+      "zone": [
+        "src/main/blocker/",
+        "src/renderer/app/pages/Blocker/",
+        "src/main/settings/",
+        "src/main/validate.ts",
+        "src/main/ipc.ts",
+        "src/main/windows.ts",
+        "src/main/index.ts",
+        "src/main/widget/",
+        "tests/e2e/shell.spec.ts",
+        "tests/e2e/blocker.spec.ts"
+      ],
+      "review": "да — ремонт ветки",
+      "model": "сильная",
+      "status": "done",
+      "startedAt": "2026-10-27T13:09:34+05:00",
+      "finishedAt": "2026-10-27T13:41:23+05:00",
+      "retries": 0,
+      "repairs": 1,
+      "repairFindings": [
+        "дописать i18n-ключи blocker.invalid.strictLocked и settings.dbUnavailable, переключить index.ts"
+      ],
+      "tests": {
+        "passed": 299,
+        "failed": 0
+      },
+      "commit": "83f46e4"
+    },
+    {
+      "id": "F2",
+      "title": "Правки по слепой приёмке",
+      "requirements": [
+        "R01",
+        "R149",
+        "R118",
+        "R89",
+        "R67",
+        "R69",
+        "R87"
+      ],
+      "blockedBy": [],
+      "wave": 7,
+      "zone": [
+        "package.json",
+        "package-lock.json",
+        ".npmrc",
+        "README.md",
+        "scripts/",
+        "src/main/audio/",
+        "src/renderer/audio/",
+        "src/main/timer/",
+        "src/main/blocker/",
+        "src/renderer/app/pages/Home/",
+        "src/renderer/app/pages/Timer/",
+        "src/shared/i18n/",
+        "tests/e2e/"
+      ],
+      "review": "нет",
+      "model": "сильная",
+      "status": "done",
+      "retries": 0,
+      "repairs": 0,
+      "startedAt": "2026-10-27T14:07:21+05:00",
+      "finishedAt": "2026-10-27T14:37:26+05:00",
+      "tests": {
+        "passed": 313,
+        "failed": 0
+      },
+      "commit": "2c27c88"
     }
   ],
-  "tests": null,
+  "tests": {
+    "passed": 313,
+    "failed": 0
+  },
   "debt": {
-    "placeholders": [],
+    "placeholders": [
+      "12 природных и атмосферных звуков ждут mp3 пользователя в assets/sounds/ (имена — assets/sounds/README.md)",
+      "Источник обновлений [GITHUB_OWNER]/[GITHUB_REPO] в electron-builder.yml и src/main/updater/source.ts",
+      "Windows 11 и два монитора — ручной чек-лист docs/manual-checklist.md"
+    ],
     "assumptions": [],
     "emptyEnv": []
   },
-  "additions": [],
+  "additions": [
+    "«Добавить свой звук» из mp3/ogg/wav/m4a — ради R80"
+  ],
   "coverage": {
     "found": 6,
     "fixed": 5,
@@ -448,8 +612,30 @@ window.STATE =
       "R152 — Windows 11 и два монитора проверяются вручную по чек-листу: на этой машине только Windows 10"
     ]
   },
-  "concerns": [],
-  "blind": null,
+  "concerns": [
+    "src/preload/api/audioEngine.ts:8 + src/main/ipc.ts:22 — audio:engine-status мимо handle(), принимать только от окна audio (Т05)",
+    "src/main/settings/schema.ts:112 — pattern правила блокировки не нормализуется при импорте; buildPac должен экранировать, activeDomainsFor — пропускать только normalizeDomain (Т04)",
+    "src/main/index.ts:79-86 — при невозможности открыть БД приложение молча работает в памяти, нужно сообщение пользователю",
+    "src/main/timer/ipc.ts:71, src/main/audio/ipc.ts:38, settings/SettingsManager.ts:114 — savePreset/импорт принимают builtin:true и перезаписывают встроенные пресеты",
+    "src/preload/api/tasks.ts:5-6 / src/main/tasks/ipc.ts:23-24 — TaskDraft/TaskPatch объявлены дважды; disabled() в app/ipc.ts:9 дублирует updater",
+    "src/main/ipc.ts:15 — доверенный отправитель: любой file:// и любой URL dev-сервера, а должен быть только свой index.html",
+    "tests/e2e/shell.spec.ts — вкладки читаются сразу после клика без ожидания, гонка",
+    "tests/e2e/widget.spec.ts — однажды виджет скрылся через 1,9 с вместо 5 с, причина не найдена",
+    "src/main/settings/dataReset.ts:40-46 — исключение в releaseBlocker/proxyRestored оставляет блокировку выключенной (нет try/finally с undo)",
+    "tests/e2e/system.spec.ts:295 / settings/ipc.ts:91 — нет теста: снимок прокси в kv, возврат не удался → deleteAllData отказывает и метку не ставит",
+    "src/main/settings/dataReset.ts:63-71 — isSafeUserDataDir пропускает общую папку из DEEPFOCUS_USER_DATA; удалять только там, где есть deepfocus.db",
+    "src/main/settings/ipc.ts:99 — тестовый переключатель DEEPFOCUS_NO_RELAUNCH в продуктовом коде"
+  ],
+  "blind": {
+    "checked": 27,
+    "matched": 17,
+    "mismatches": [
+      "Установка с нуля: npm ci / npm install падают на сборке better-sqlite3 (нет Visual Studio) — README-команды не работают в чистом клоне",
+      "R118/R89 — после перезапуска сессия восстанавливается, а звук сессии нет",
+      "R67 — в строгом режиме «Стоп» без подтверждения завершает сессию и снимает блокировку",
+      "R87 — плавное затухание при остановке не подтверждено: индикатор гаснет за ≤0,3 с при fade 1,5 с"
+    ]
+  },
   "beats": [
     "2026-10-27T10:11:33+05:00",
     "2026-10-27T10:11:50+05:00",
@@ -463,9 +649,52 @@ window.STATE =
     "2026-10-27T10:30:17+05:00",
     "2026-10-27T10:30:18+05:00",
     "2026-10-27T10:32:29+05:00",
-    "2026-10-27T10:32:30+05:00"
+    "2026-10-27T10:32:30+05:00",
+    "2026-10-27T10:32:40+05:00",
+    "2026-10-27T10:33:07+05:00",
+    "2026-10-27T10:33:08+05:00",
+    "2026-10-27T11:03:54+05:00",
+    "2026-10-27T11:03:57+05:00",
+    "2026-10-27T11:04:31+05:00",
+    "2026-10-27T11:09:03+05:00",
+    "2026-10-27T11:09:04+05:00",
+    "2026-10-27T11:22:00+05:00",
+    "2026-10-27T11:22:01+05:00",
+    "2026-10-27T11:40:44+05:00",
+    "2026-10-27T11:40:45+05:00",
+    "2026-10-27T11:40:46+05:00",
+    "2026-10-27T11:44:22+05:00",
+    "2026-10-27T11:44:25+05:00",
+    "2026-10-27T11:44:26+05:00",
+    "2026-10-27T11:53:34+05:00",
+    "2026-10-27T11:55:50+05:00",
+    "2026-10-27T11:55:51+05:00",
+    "2026-10-27T11:55:52+05:00",
+    "2026-10-27T12:22:42+05:00",
+    "2026-10-27T12:22:43+05:00",
+    "2026-10-27T12:27:04+05:00",
+    "2026-10-27T12:27:05+05:00",
+    "2026-10-27T12:51:37+05:00",
+    "2026-10-27T12:51:51+05:00",
+    "2026-10-27T13:01:29+05:00",
+    "2026-10-27T13:01:30+05:00",
+    "2026-10-27T13:09:32+05:00",
+    "2026-10-27T13:09:33+05:00",
+    "2026-10-27T13:09:34+05:00",
+    "2026-10-27T13:34:57+05:00",
+    "2026-10-27T13:38:36+05:00",
+    "2026-10-27T13:41:23+05:00",
+    "2026-10-27T13:41:24+05:00",
+    "2026-10-27T13:41:25+05:00",
+    "2026-10-27T14:07:18+05:00",
+    "2026-10-27T14:07:19+05:00",
+    "2026-10-27T14:07:20+05:00",
+    "2026-10-27T14:07:21+05:00",
+    "2026-10-27T14:37:26+05:00",
+    "2026-10-27T14:37:27+05:00",
+    "2026-10-27T14:39:19+05:00"
   ],
-  "rev": 15,
+  "rev": 65,
   "waiting": null,
   "waits": [
     {
@@ -553,13 +782,421 @@ window.STATE =
       "g": "G3",
       "ok": true,
       "problems": 0
+    },
+    {
+      "t": "2026-10-27T10:33:07+05:00",
+      "k": "stage",
+      "id": "build",
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T10:33:08+05:00",
+      "k": "ticket",
+      "ids": [
+        "01"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T11:03:54+05:00",
+      "k": "ticket",
+      "ids": [
+        "01"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 27,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:03:57+05:00",
+      "k": "ticket",
+      "ids": [
+        "01"
+      ],
+      "act": "review"
+    },
+    {
+      "t": "2026-10-27T11:04:31+05:00",
+      "k": "ticket",
+      "ids": [
+        "02",
+        "03"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T11:09:03+05:00",
+      "k": "ticket",
+      "ids": [
+        "01"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 27,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:09:04+05:00",
+      "k": "add",
+      "key": "concerns",
+      "n": 6
+    },
+    {
+      "t": "2026-10-27T11:22:00+05:00",
+      "k": "ticket",
+      "ids": [
+        "02"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 78,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:22:01+05:00",
+      "k": "ticket",
+      "ids": [
+        "04",
+        "05"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T11:40:44+05:00",
+      "k": "ticket",
+      "ids": [
+        "03"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 187,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:40:45+05:00",
+      "k": "tickets",
+      "n": 8
+    },
+    {
+      "t": "2026-10-27T11:40:46+05:00",
+      "k": "add",
+      "key": "concerns",
+      "n": 2
+    },
+    {
+      "t": "2026-10-27T11:40:46+05:00",
+      "k": "ticket",
+      "ids": [
+        "06"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T11:44:22+05:00",
+      "k": "ticket",
+      "ids": [
+        "05"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 187,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:44:25+05:00",
+      "k": "add",
+      "key": "debt.placeholders",
+      "n": 1
+    },
+    {
+      "t": "2026-10-27T11:44:26+05:00",
+      "k": "add",
+      "key": "additions",
+      "n": 1
+    },
+    {
+      "t": "2026-10-27T11:53:34+05:00",
+      "k": "ticket",
+      "ids": [
+        "04"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 223,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:55:50+05:00",
+      "k": "ticket",
+      "ids": [
+        "06"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 223,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T11:55:51+05:00",
+      "k": "tickets",
+      "n": 8
+    },
+    {
+      "t": "2026-10-27T11:55:51+05:00",
+      "k": "gate",
+      "g": "G3",
+      "ok": true,
+      "problems": 0
+    },
+    {
+      "t": "2026-10-27T11:55:52+05:00",
+      "k": "ticket",
+      "ids": [
+        "07"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T12:22:42+05:00",
+      "k": "ticket",
+      "ids": [
+        "07"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 270,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T12:22:42+05:00",
+      "k": "ticket",
+      "ids": [
+        "07"
+      ],
+      "act": "review"
+    },
+    {
+      "t": "2026-10-27T12:22:43+05:00",
+      "k": "ticket",
+      "ids": [
+        "08"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T12:27:04+05:00",
+      "k": "ticket",
+      "ids": [
+        "07"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 270,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T12:27:05+05:00",
+      "k": "add",
+      "key": "concerns",
+      "n": 4
+    },
+    {
+      "t": "2026-10-27T12:51:37+05:00",
+      "k": "ticket",
+      "ids": [
+        "08"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 277,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T12:51:37+05:00",
+      "k": "add",
+      "key": "debt.placeholders",
+      "n": 2
+    },
+    {
+      "t": "2026-10-27T12:51:51+05:00",
+      "k": "ticket",
+      "ids": [
+        "03"
+      ],
+      "act": "repair",
+      "note": "e2e widget.spec:82 красный: Ctrl+Alt+I не переключает click-through после Т07"
+    },
+    {
+      "t": "2026-10-27T13:01:29+05:00",
+      "k": "ticket",
+      "ids": [
+        "03"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 277,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T13:01:30+05:00",
+      "k": "stage",
+      "id": "review",
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T13:09:32+05:00",
+      "k": "tickets",
+      "n": 9
+    },
+    {
+      "t": "2026-10-27T13:09:33+05:00",
+      "k": "gate",
+      "g": "G3",
+      "ok": true,
+      "problems": 0
+    },
+    {
+      "t": "2026-10-27T13:09:34+05:00",
+      "k": "add",
+      "key": "report",
+      "n": 13
+    },
+    {
+      "t": "2026-10-27T13:09:34+05:00",
+      "k": "ticket",
+      "ids": [
+        "F1"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T13:34:57+05:00",
+      "k": "ticket",
+      "ids": [
+        "F1"
+      ],
+      "act": "repair",
+      "note": "дописать i18n-ключи blocker.invalid.strictLocked и settings.dbUnavailable, переключить index.ts"
+    },
+    {
+      "t": "2026-10-27T13:38:36+05:00",
+      "k": "ticket",
+      "ids": [
+        "F1"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 299,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T13:38:36+05:00",
+      "k": "ticket",
+      "ids": [
+        "F1"
+      ],
+      "act": "review"
+    },
+    {
+      "t": "2026-10-27T13:41:23+05:00",
+      "k": "ticket",
+      "ids": [
+        "F1"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 299,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T13:41:24+05:00",
+      "k": "add",
+      "key": "report",
+      "n": 1
+    },
+    {
+      "t": "2026-10-27T13:41:25+05:00",
+      "k": "stage",
+      "id": "final",
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T14:07:18+05:00",
+      "k": "gate",
+      "g": "G4",
+      "ok": false,
+      "checked": 27,
+      "matched": 17
+    },
+    {
+      "t": "2026-10-27T14:07:19+05:00",
+      "k": "tickets",
+      "n": 10
+    },
+    {
+      "t": "2026-10-27T14:07:20+05:00",
+      "k": "gate",
+      "g": "G3",
+      "ok": true,
+      "problems": 0
+    },
+    {
+      "t": "2026-10-27T14:07:21+05:00",
+      "k": "ticket",
+      "ids": [
+        "F2"
+      ],
+      "act": "start"
+    },
+    {
+      "t": "2026-10-27T14:37:26+05:00",
+      "k": "ticket",
+      "ids": [
+        "F2"
+      ],
+      "act": "done",
+      "tests": {
+        "passed": 313,
+        "failed": 0
+      }
+    },
+    {
+      "t": "2026-10-27T14:37:26+05:00",
+      "k": "tests",
+      "passed": 313,
+      "failed": 0
+    },
+    {
+      "t": "2026-10-27T14:37:27+05:00",
+      "k": "add",
+      "key": "report",
+      "n": 2
+    },
+    {
+      "t": "2026-10-27T14:39:19+05:00",
+      "k": "finish",
+      "result": "Deep Focus: десктоп-приложение для Windows — плавающий таймер поверх окон, блокировка сайтов без прав администратора, микшер звуков, задачи, аналитика, установщик"
     }
   ],
   "reqList": [
     {
       "id": "R01",
       "text": "«Тип продукта: Desktop-приложение» · «Основная платформа: Windows 10/11.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R02",
@@ -570,337 +1207,337 @@ window.STATE =
     {
       "id": "R03",
       "text": "«Пользователь запускает Deep Work, после чего: На экране появляется небольшой полупрозрачный таймер, закреплённый поверх других окон.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R04",
       "text": "«Время автоматически учитывается в статистике.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R05",
       "text": "«По завершении сессии приложение предлагает отдохнуть и затем продолжить работу.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R06",
       "text": "«Приложение должно быть полезным как для коротких рабочих сессий, так и для продолжительных периодов Deep Work.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R07",
       "text": "«Рабочая сессия: 25 минут. Короткий перерыв: 5 минут. Длинный перерыв: 30 минут. Количество рабочих сессий перед длинным перерывом: 4.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R08",
       "text": "«Все значения должны изменяться в настройках.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R09",
       "text": "Focus: «Обратный отсчёт рабочего времени.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R10",
       "text": "Focus: «Отображение текущей задачи.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R11",
       "text": "Focus: «Активная блокировка выбранных сайтов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R12",
       "text": "Focus: «Воспроизведение выбранных фоновых звуков.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R13",
       "text": "Focus: «Сохранение продолжительности и результата сессии.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R14",
       "text": "Short Break: «Короткий перерыв после рабочего интервала.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R15",
       "text": "Short Break: «Возможность автоматически отключить блокировку сайтов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R16",
       "text": "Short Break: «Возможность переключить звуковой профиль.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R17",
       "text": "Short Break: «Ненавязчивое уведомление о завершении отдыха.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R18",
       "text": "Long Break: «Длинный отдых после заданного количества завершённых циклов.» · «Настраиваемая продолжительность.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R19",
       "text": "Long Break: «Отдельный звуковой профиль для отдыха.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R20",
       "text": "Long Break: «Автоматическое начало следующего цикла по желанию пользователя.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R21",
       "text": "«Start. Pause. Resume. Stop. Reset. Skip Break. Skip Session. Restart Session.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R22",
       "text": "«Переключение между режимами.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R23",
       "text": "«При остановке сессии приложение должно корректно фиксировать фактически отработанное время и причину завершения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R24",
       "text": "«Пользователь может включить автоматическое переключение интервалов или управлять каждым этапом вручную.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R25",
       "text": "«45 минут работы. 60 минут работы. 90 минут работы.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R26",
       "text": "«Пользовательские интервалы произвольной продолжительности.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R27",
       "text": "«Режим Stopwatch для учёта времени без обратного отсчёта.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R28",
       "text": "«Свободный Deep Work без обязательных перерывов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R29",
       "text": "«Продолжительность интервалов не должна быть жёстко зашита в код.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R30",
       "text": "«Таймер должен существовать как отдельное системное окно, а не как элемент главного интерфейса.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R31",
       "text": "«При запуске рабочей сессии таймер появляется в выбранной области экрана и остаётся поверх обычных окон Windows.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R32",
       "text": "«Он должен оставаться видимым при работе в: Google Chrome и других браузерах. Visual Studio Code и других IDE. Терминалах. Microsoft Word и Excel. Проводнике Windows. Других настольных приложениях.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R33",
       "text": "«Переключение между программами, использование Alt+Tab и открытие новых окон не должны убирать таймер за активное окно.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R34",
       "text": "«Нужно учитывать ограничения некоторых эксклюзивных полноэкранных приложений: абсолютную видимость поверх каждого возможного приложения гарантировать нельзя.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R35",
       "text": "«Регулируемая прозрачность, ориентировочно от 40% до 95%.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R36",
       "text": "«Отдельная настройка прозрачности фона.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R37",
       "text": "«Читаемые цифры и индикаторы.» · «Прозрачность не должна снижать читаемость таймера. При необходимости текст и индикатор прогресса должны оставаться более контрастными, чем фон.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R38",
       "text": "«Спокойная цветовая палитра. Минималистичный дизайн.» · «Отсутствие навязчивых анимаций. Отсутствие больших панелей и лишнего текста.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R39",
       "text": "«Поддержка тёмной темы.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R40",
       "text": "«Перемещать таймер мышью в любое место экрана.» · «Размещать его в любом углу.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R41",
       "text": "«Изменять ширину и высоту.» · «Изменять размер через настройки.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R42",
       "text": "«Настраивать отступы от краёв.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R43",
       "text": "«Выбирать минимальный или расширенный вид.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R44",
       "text": "«Перемещать виджет между мониторами.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R45",
       "text": "«Сохранять позицию и размер между запусками.» · «Позиция должна сохраняться в локальных настройках.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R46",
       "text": "«После отключения дополнительного монитора приложение должно корректно восстановить виджет на доступном экране, если сохранённая позиция стала недоступна.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R47",
       "text": "«Compact Mode — Показывает только обратный отсчёт и небольшой индикатор прогресса.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R48",
       "text": "«Standard Mode — Показывает время, текущий режим и основные элементы управления.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R49",
       "text": "«Expanded Mode — Показывает время, название задачи, прогресс, статус блокировки и состояние звуков.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R50",
       "text": "«Пользователь должен самостоятельно выбирать режим.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R51",
       "text": "«В Interactive Mode пользователь может перемещать виджет и нажимать кнопки.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R52",
       "text": "«В Click-through Mode взаимодействие с виджетом отключено, а клики проходят к окну под ним.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R53",
       "text": "«Переключение между режимами должно выполняться глобальной горячей клавишей. Пользователь всегда должен иметь возможность вернуть интерактивность.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R54",
       "text": "«Горячую клавишу для показа и скрытия виджета.» · «Возможность скрыть таймер без остановки сессии.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R55",
       "text": "«Возможность временно отключить Always on Top.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R56",
       "text": "«Восстановление виджета из системного трея.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R57",
       "text": "«Восстановление состояния после перезапуска приложения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R58",
       "text": "«Отсутствие влияния скрытия виджета на блокировку сайтов и воспроизведение звуков.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R59",
       "text": "«Предустановленные категории: Instagram. YouTube. Telegram Web. LinkedIn. TikTok. Reddit. X. Facebook. Другие социальные сети. Новости и развлекательные сайты.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R60",
       "text": "«Пользователь может добавлять любые собственные домены и URL.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R61",
       "text": "Для каждого правила: «Домен или URL. Категорию. Включение и отключение.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R62",
       "text": "Для каждого правила: «Применение только во время Deep Work.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R63",
       "text": "Для каждого правила: «Применение по расписанию.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R64",
       "text": "Для каждого правила: «Отдельные настройки для коротких и длинных перерывов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R65",
       "text": "«Просмотр активных правил.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R66",
       "text": "«Standard Mode — Пользователь может остановить сессию или отключить блокировку вручную.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R67",
       "text": "«Strict Mode — Во время сессии отключение блокировки требует дополнительного подтверждения или завершения заданного периода. Приложение должно объяснять, какие действия останутся доступны.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R68",
       "text": "«Scheduled Mode — Правила автоматически включаются в заданное время.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R69",
       "text": "«Строгий режим должен препятствовать случайному отключению, но не должен блокировать системные настройки, лишать пользователя доступа к управлению компьютером или мешать восстановлению доступа.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R70",
@@ -911,287 +1548,288 @@ window.STATE =
     {
       "id": "R71",
       "text": "«Локальный механизм управления правилами и состоянием сессии.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R72",
       "text": "«При необходимости системная блокировка доменов для выбранных браузеров и приложений.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R73",
       "text": "«Синхронизация состояния блокировки с таймером.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R74",
       "text": "«Проверить состояние расширения и доступность выбранного механизма блокировки.» · «Активировать правила.» · «Отобразить статус блокировки в приложении.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R75",
       "text": "«Сохранять состояние блокировки при паузе согласно настройкам.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R76",
       "text": "«По окончании рабочего интервала применить правила для перерыва.» · «После завершения сессии снять временные ограничения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R77",
       "text": "«Если блокировка не сработала, приложение должно сообщить об этом, а не показывать ложный статус активной защиты.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R78",
       "text": "«Природа: Дождь. Дождь по окну. Морские волны. Ветер. Лес. Пение птиц. Ручей. Река. Гроза.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R79",
       "text": "«Фоновые шумы: Белый шум. Розовый шум. Коричневый шум.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R80",
       "text": "«Окружающая атмосфера: Камин. Кофейня. Тихое помещение. Другие ненавязчивые фоновые звуки.»",
-      "status": "in-ticket"
+      "status": "placeholder",
+      "why": "звуки — mp3 от пользователя («я сам добавлю … mp3 файлы»); файлов пока нет"
     },
     {
       "id": "R81",
       "text": "«Все аудиоматериалы должны иметь подходящую лицензию или быть созданы специально для приложения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R82",
       "text": "«Одновременно воспроизводить несколько звуков.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R83",
       "text": "«Настраивать громкость каждой дорожки.» · «Включать и выключать отдельные дорожки.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R84",
       "text": "«Сохранять любимые комбинации.» · «Примеры пресетов: Rain Focus. Ocean Focus. Forest. Brown Noise. Coffee Shop. Silent Focus.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R85",
       "text": "«Использовать бесшовное зацикливание.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R86",
       "text": "«Регулировать общую громкость.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R87",
       "text": "«Плавно затухать при остановке.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R88",
       "text": "«Выбирать звуковой профиль для работы и отдыха.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R89",
       "text": "«При запуске сессии приложение автоматически включает выбранный звуковой профиль, если соответствующая опция активирована.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R90",
       "text": "«При переходе на перерыв можно: Остановить звук. Продолжить воспроизведение. Переключить профиль. Уменьшить громкость.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R91",
       "text": "«Настройки звука должны сохраняться между запусками.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R92",
       "text": "«Название. Описание или ожидаемый результат. Проект. Приоритет. Планируемая продолжительность. Статус выполнения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R93",
       "text": "«Примеры проектов: Разработка. Обучение. Работа. Личные проекты. Подготовка к экзаменам.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R94",
       "text": "«Создание и редактирование задач.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R95",
       "text": "«Запуск таймера непосредственно из задачи.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R96",
       "text": "«Привязку сессии к проекту.» · «Учёт времени по задачам.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R97",
       "text": "«Просмотр истории.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R98",
       "text": "«Отметку результата после сессии.» · «Выполнено. Выполнено частично. Продолжить позже. Отменить задачу.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R99",
       "text": "«Приложение не должно требовать заполнения большого количества полей перед каждым запуском таймера.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R100",
       "text": "«Время Deep Work за день.» · «Время Deep Work за неделю и месяц.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R101",
       "text": "«Количество завершённых сессий.» · «Средняя продолжительность сессии.» · «Количество прерванных сессий.» · «Доля завершённых сессий.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R102",
       "text": "«Время по проектам и задачам.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R103",
       "text": "«Выполнение дневной цели.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R104",
       "text": "«Самые продуктивные часы.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R105",
       "text": "«Дневную цель по минутам. Количество сессий в день. Цель на неделю.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R106",
       "text": "«Индивидуальную цель для определённого проекта.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R107",
       "text": "«Приложение показывает прогресс и сохраняет историю достижений.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R108",
       "text": "«Streak можно использовать как дополнительную функцию, но он не должен создавать навязчивые уведомления или наказывать пользователя за пропущенные дни.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R109",
       "text": "«Запланированное время. Фактическое активное время. Время на паузе. Досрочно завершённые сессии. Сессии, восстановленные после перезапуска.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R110",
       "text": "«Приостановленная сессия не должна автоматически засчитываться как полноценное время концентрации.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R111",
       "text": "«Все уведомления должны быть ненавязчивыми и настраиваемыми.» · «Начало сессии. Завершение рабочего интервала. Начало перерыва. Завершение перерыва. Достижение дневной цели. Ошибка блокировки сайтов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R112",
       "text": "«Глобальные горячие клавиши: Запуск или пауза. Показ или скрытие плавающего таймера. Переключение интерактивности виджета. Завершение сессии. Отключение или включение фоновых звуков.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R113",
       "text": "«Все сочетания должны настраиваться.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R114",
       "text": "«Приложение должно проверять конфликты с системными и другими глобальными клавишами.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R115",
       "text": "«Работу в системном трее.» · «Минимизацию без завершения процесса.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R116",
       "text": "«Запуск вместе с Windows по желанию пользователя.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R117",
       "text": "«Возможность полностью завершить приложение.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R118",
       "text": "«Восстановление активной сессии после сбоя или перезагрузки.» · «Сохранение текущего времени, режима, задачи и настроек.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R119",
       "text": "«Для таймера следует хранить абсолютное время завершения интервала и корректно пересчитывать остаток после сна компьютера или перезапуска, а не полагаться исключительно на постоянно работающий JavaScript-таймер.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R120",
       "text": "«При завершении приложения пользователь должен понимать, будет ли активная сессия остановлена или восстановлена при следующем запуске.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R121",
       "text": "«Минималистичным. Спокойным. Современным. Ненавязчивым. Функциональным. Визуально последовательным.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R122",
       "text": "«Тёмный графитовый фон. Приглушённые синие и зелёные акценты. Контрастный текст. Минимум ярких цветов. Полупрозрачные поверхности для плавающего виджета.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R123",
       "text": "Главный экран: «Текущий режим. Основной таймер. Кнопку запуска. Текущую задачу. Выбор звукового профиля. Статус блокировки. Краткую статистику за день.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R124",
       "text": "«Второстепенные настройки не должны перегружать главный экран.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R125",
       "text": "«Home — запуск сессии и текущая задача. Timer — режимы и настройки интервалов. Sounds — библиотека и микшер. Blocker — правила и расписания. Tasks — задачи и проекты. Analytics — история и статистика. Settings — внешний вид, горячие клавиш…",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R126",
       "text": "«Настройки необходимо разделить на понятные категории.» (Timer · Floating Widget · Website Blocker · Sounds · General)",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R127",
       "text": "Floating Widget: «Поведение при переключении мониторов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R128",
@@ -1202,67 +1840,67 @@ window.STATE =
     {
       "id": "R129",
       "text": "General: «Тема.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R130",
       "text": "General: «Язык.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R131",
       "text": "General: «Локальное хранение.» · «Резервное копирование настроек.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R132",
       "text": "«Desktop: Electron. Язык: TypeScript. Frontend: React. Стилизация: Tailwind CSS. Локальная база: SQLite. Аудиосистема: Web Audio API. Браузерная интеграция: Chrome Extension. Сборка: Electron Builder.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R133",
       "text": "«Интеграцию с операционной системой следует реализовывать через контролируемый основной процесс Electron, а не предоставлять renderer-процессу неограниченный доступ к системным возможностям.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R134",
       "text": "«Основные модули: Timer Engine … Floating Widget Manager … Website Blocking Controller … Ambient Audio Engine … Task Manager … Analytics Engine … Settings Manager»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R135",
       "text": "«SQLite должна хранить: Настройки приложения. Задачи и проекты. Историю сессий. Статистику. Звуковые пресеты. Правила блокировки. Состояние восстановления.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R136",
       "text": "«Deep Focus должен работать локально и не требовать создания аккаунта.» · «Пароли и сторонние учётные данные приложению не требуются.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R137",
       "text": "«Не отправлять историю активности на внешний сервер.» · «Не передавать данные о задачах сторонним сервисам.» · «Не использовать скрытый сбор телеметрии.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R138",
       "text": "«Не собирать историю посещений сайтов сверх необходимого для блокировки.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R139",
       "text": "«Не отключать защитные механизмы операционной системы.» · «Не блокировать системные приложения и инструменты восстановления.» · «Не выполнять опасные системные операции без явного разрешения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R140",
       "text": "«Предоставлять пользователю контроль над локальными данными.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R141",
       "text": "«Если используется системная блокировка доменов, приложение должно корректно сохранять исходные настройки, изменять только принадлежащие ему правила и восстанавливать их при отключении функции или удалении приложения.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R142",
@@ -1273,67 +1911,68 @@ window.STATE =
     {
       "id": "R143",
       "text": "«Защиту от двойного запуска таймера.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R144",
       "text": "«Восстановление после сна компьютера.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R145",
       "text": "«Проверку доступности звуковых файлов.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R146",
       "text": "«Обработку ошибок системной блокировки.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R147",
       "text": "«Локальное журналирование технических ошибок.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R148",
       "text": "«Ошибка одной функции не должна приводить к остановке всех остальных. Например, если расширение Chrome отключено, таймер и звуки должны продолжать работать, а приложение должно сообщить, что блокировка недоступна.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R149",
       "text": "«Установщик.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R150",
       "text": "«Обновление приложения.»",
-      "status": "in-ticket"
+      "status": "placeholder",
+      "why": "пользователь: «4) да» — GitHub Releases, владелец/репозиторий — заглушка, публикует пользователь"
     },
     {
       "id": "R151",
       "text": "«Документацию.» · «Системные ограничения и исключения документированы.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R152",
       "text": "«Тестирование Windows 10/11.» · «Проверку нескольких мониторов.» · «Проверки безопасности.»",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R153",
       "text": "«Проект нельзя считать готовым только потому, что интерфейс выглядит правильно.» (17 сценариев §17 подтверждены)",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R154",
       "text": "«Сначала реализовать плавающий системный таймер … Затем подключить надёжный движок таймера и восстановление сессий. После этого добавить блокировку сайтов и интеграцию с Chrome. Затем реализовать микшер природных звуков, задачи и аналитику…",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R155i",
       "text": "(подразумевается) звуки библиотеки должны откуда-то взяться: записи нужной лицензии или звук, созданный самим приложением",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R156i",
@@ -1344,17 +1983,17 @@ window.STATE =
     {
       "id": "R157i",
       "text": "(подразумевается) «Язык» в настройках — значит, интерфейс минимум на двух языках; каких — не сказано",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R158i",
       "text": "(подразумевается) «Обновление приложения» требует места, откуда берутся новые версии",
-      "status": "in-ticket"
+      "status": "done"
     },
     {
       "id": "R159i",
       "text": "(подразумевается) системная блокировка доменов (hosts) требует прав администратора",
-      "status": "in-ticket"
+      "status": "done"
     }
   ],
   "gates": {
@@ -1373,9 +2012,33 @@ window.STATE =
     },
     "G3": {
       "ok": true,
-      "at": "2026-10-27T10:32:30+05:00",
+      "at": "2026-10-27T14:07:20+05:00",
       "problems": 0
+    },
+    "G4": {
+      "ok": false,
+      "at": "2026-10-27T14:07:18+05:00",
+      "checked": 27,
+      "matched": 17
     }
   },
-  "result": null
+  "result": "Deep Focus: десктоп-приложение для Windows — плавающий таймер поверх окон, блокировка сайтов без прав администратора, микшер звуков, задачи, аналитика, установщик",
+  "report": [
+    "Статус блокировки не перепроверяется после включения: если другая программа перезапишет настройки прокси или упадёт заглушка, статус останется «активна»",
+    "При ошибке блокировки приложение раз в минуту заново пытается её включить — системные настройки прокси дёргаются, пока ошибку не устранят",
+    "Удаление приложения с флагом --cleanup сначала поднимает остальные модули — восстановленная сессия может на миг показать виджет",
+    "Импорт резервной копии доверяет пометке «встроенный»: из подправленного вручную файла своё правило или пресет может стать неудаляемым",
+    "«Удалить все данные» при DEEPFOCUS_USER_DATA, указывающей на общую папку, удалит там чужую папку sounds (переменная только для тестов)",
+    "Нет теста на отказ удаления данных, когда исходные настройки прокси не удалось вернуть (логика есть, проверена на фейках)",
+    "При выходе с выбором «остановить» сессия пишется с причиной «остановлена», а не «выход из приложения»",
+    "Очень длинный mp3 (около часа) декодируется целиком — окно звука может упасть от нехватки памяти; лучше брать петли по 1–10 минут",
+    "Ошибка при добавлении своего звука (файл больше 500 МБ, ошибка копирования) не показывается пользователю",
+    "Уведомление «клики насквозь восстановлены» идёт мимо общих настроек уведомлений",
+    "После окончательного падения окна звука каждое открытие Sounds ждёт 10 секунд",
+    "Если переименовать задачу во время сессии, развёрнутый виджет показывает старое название до следующей сессии",
+    "Метод установки обновления при выходе нигде не вызывается — обновление ставится по кнопке",
+    "Во вкладке Settings → Timer переключатель «блокировка на паузе» в строгом режиме остаётся активным: изменение не применится, вкладка покажет ошибку",
+    "Если в строгом режиме выйти из приложения с выбором «остановить сессию», сессия не останавливается, а сохраняется для восстановления (блокировка при этом снимается). Горячая клавиша «завершить сессию» в строгом режиме молча не срабатывает",
+    "Если процесс приложения убить принудительно, в настройках прокси остаётся адрес выключенной заглушки до следующего запуска; интернет при этом работает (браузеры идут напрямую), при следующем запуске настройки возвращаются"
+  ]
 }

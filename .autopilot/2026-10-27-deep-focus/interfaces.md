@@ -203,3 +203,77 @@ interface BlockContext { timerKind: IntervalKind | null; timerStatus: TimerStatu
 ## Что построено в тасках
 
 (Дописывается после каждого таска: что появилось и где.)
+
+### Т01 — каркас (построено)
+
+- **SQLite — better-sqlite3 13.0.3** (N-API prebuild грузится и в Node 24, и в Electron 45 без пересборки). Electron **45.0.0** (Node 24.22), TypeScript 6.0.3, Vite 8.3.5, electron-vite 6.0.0, React 19.3.1, Tailwind 4.3.3, Vitest 5.0.5, ESLint 10.13.0, Playwright 1.64.1. Install-скрипты отключены `.npmrc` (`ignore-scripts=true`): иначе npm собирает better-sqlite3 через node-gyp и падает без Visual Studio. Бинарь Electron — `npm run electron:install` после `npm ci`.
+- Команды: `npm run dev|build|check|e2e`, `npm run typecheck|test|lint`, `npx vitest run <файл>`. e2e требует `npm run build` перед запуском.
+- Модули: `register<Module>(ctx: MainContext)` в `src/main/<module>/index.ts`; `ctx.services: Partial<Services>`, модуль дополняет тип через `declare module '../context'`. IPC: `handle<A>(channel, checks, fn)` (`src/main/ipc.ts`) проверяет отправителя и аргументы; проверки — `v.*` из `src/main/validate.ts`. Внутренние события — `src/main/events.ts`.
+- Storage: `openStorage(path)`, `openStorageSafe(path,{now}) → {storage, corruptBackupPath}`; репозитории `settings.getAll/set/clear`, `sessions.insert/update/get/list(range)`, `tasks.list/get/insert/update/remove`, `projects|timerPresets|soundPresets|blockRules.list/get/upsert/remove`, `recovery.get/put(value, updatedAt)/clear`, `achievements.insert/list`, `kv.get/set/delete`. Миграции в `db/migrations.ts` только дописываются в конец, версия — `kv.schemaVersion`.
+- `SettingsError(field)`. i18n: `translate(lang, MessageKey, params)`; в renderer — `useT()`, `useSettings()` (`src/renderer/shared/`); общие UI-примитивы — `src/renderer/shared/ui.tsx`, токены — `theme.css`.
+- Добавки к границам: модуль `src/main/app/` (каналы `app:*`, главное окно `app/mainWindow.ts`, окна — `src/main/windows.ts`); каналы `app:modules`, `app:notice`; preload-домен `audioEngine` (`onCommand`/`reportStatus`) — только для скрытого окна audio; рассылки `blocker:statusChanged`, `audio:statusChanged`, `settings:changed`, `analytics:changed`; типы `TaskFilter`, `DateRange`, `BackupFile`, `SettingsPatch`, `FileActionResult`, `AnalyticsSummary` (минимальная — Т06 расширяет), `GoalProgress`, `Achievement`, `HotkeyCheck/Result`, `UpdateStatus`, `ModuleStatus`; i18n-домены `common`, `nav`, `system` (Т07), `updates` (Т08).
+- Маршруты renderer — hash `#/<section>/<tab>`. Переменная `DEEPFOCUS_USER_DATA` переопределяет `userData` (e2e). e2e-помощники — `tests/e2e/helpers.ts`.
+- Заглушки timer/blocker/audio/tasks/analytics уже читают Storage; их таски заменяют заглушки целиком. «Удалить все данные» сейчас: файл-маркер + перезапуск, удаление до открытия БД при следующем старте (Т07 доводит).
+
+### Т02 — таймер (построено)
+
+- `TimerEngine(deps {clock, store: TimerStore, settings: () => AppSettings['timer'], newId?, onError?})`, экспорт из `src/main/timer/index.ts`; `ctx.services.timer: TimerEngine`. Методы: `command(cmd)`, `start/pause/resume/stop/reset/skipBreak/skipSession/restartSession/switchKind/extend`, `setOutcome`, `snapshot()`, `recover(now)`, `onSuspend()/onResume()`, `refresh()`, `heartbeat()`, `dispose()`.
+- События: `on('tick'|'state', snap)`; `on('intervalEnded', SessionRecord)` — на каждую запись с любой причиной; `on('sessionStarted', snap)` — на каждый новый интервал, включая перерывы и автопереход, но не на продолжение после `recover`. Порядок: `intervalEnded → sessionStarted → state`.
+- `TimerStore {preset, taskProjectId, insertSession, updateOutcome, loadRecovery, saveRecovery}`, `storageTimerStore(storage)`.
+- `timer:state` рассылается на каждом переходе и раз в секунду, пока идёт. В `idle`/`awaiting` снимок держит в `kind`/`plannedMs` предложенный следующий интервал.
+- Модуль timer **сам** подписан на `powerMonitor` suspend/resume и `app.before-quit` (финальный heartbeat) — повторно не подписываться.
+- Решения: `reset` → idle на тот же интервал полной длины; `restartSession` стартует сразу; `stop` всегда `stopped` и сбрасывает счётчик цикла; пропущенный Focus в цикл не идёт; `switchKind` во время интервала пишет `stopped` и запускает выбранный; конец интервала, замеченный позже 5 с, → `awaiting` вместо автоперехода; скачок часов > 60 с без событий питания → `suspendedMs`.
+- e2e: при идущей сессии виджет открывается раньше главного окна — главное окно искать по URL, не `firstWindow()`.
+
+### Т03 — виджет (построено)
+
+- `WidgetManager` (`ctx.services.widget`): `show() hide() toggle() isVisible() setClickThrough(b) toggleClickThrough() setAlwaysOnTop(b) snapToAnchor(anchor) resize(w,h) applySettings(widget) start() dispose()`; события `on('boundsChanged', WidgetBounds)`, `on('visibilityChanged', boolean)`.
+- `geometry.ts`: `fitBoundsToDisplays(bounds, DisplayInfo[], 'primary'|'nearest')`, `anchorBounds(size, display, corner, marginPx)`, `targetDisplay`, `clampIntoDisplay`, `clampSize(size, mode)`, `resolveBounds(widgetSettings, displays)`; `DisplayInfo {id, primary, workArea}`.
+- IPC: `widget:isVisible`, `widget:showMenu`, `widget:resize`(w,h), рассылка `widget:visibilityChanged`; preload `widget.isVisible() showMenu() resize(w,h) onVisibility(cb)`.
+- defaults: `WIDGET_MIN_SIZE`, `WIDGET_DEFAULT_SIZE`, `WIDGET_IDLE_HIDE_MS=5000`. Видимость: `hidden` = «скрыл пользователь»; автоскрытие после сессии `hidden` не меняет.
+- Временные глобальные Ctrl+Alt+I/W — `src/main/widget/hotkeys.ts`; **Т07 вызывает `disposeWidgetHotkeys()`** перед своей регистрацией.
+- Ресайз — уголком внутри виджета через `widget:resize` (прозрачное окно на Windows не тянется за край).
+- До Т07: пока существует окно виджета, закрытие главного окна не завершает приложение (window-all-closed не срабатывает); в меню виджета есть «Открыть Deep Focus». Пункт трея «Показать таймер» (R56) — Т07.
+- e2e: z-порядок «виджет выше Блокнота» проверяется всегда, фокус Блокнота — только предупреждением. `shell.spec` (Т01) читает вкладки без ожидания после клика — гонка, иногда падает.
+
+### Т05 — звуки (построено)
+
+- `ctx.services.audio: AudioController`: `play(id|TrackState[])`, `stop({fade?})`, `setTrack`, `setMaster`, `toggleMute`, `applyBreakBehavior()`, `applyFocusBehavior()`, `availability()`, `library()`, `verify(): Promise`, `addCustomSound(path,name)`, `attachFile(soundId,path)`, `status()`, `refresh()`, `bindTimer(timer)`, `on('status')`. `ctx.services.audioEngine: EngineHost` — `window()`, `dispose()`.
+- Preload: `audio.addCustomSound(soundId?)` — без id добавляет в «Свои», с id кладёт файл `userData/sounds/<id>.<ext>`. `savePreset` ставит `builtin=false`, id встроенного → `ValidationError`.
+- Окно audio: команды `apply{playing,masterGain,fadeMs,tracks[{soundId,source,gain}]}`, `probe{requestId,items}`; ответы `ready`, `trackFailed`, `probeResult`, `error`. Статус движка main принимает **только** от webContents окна audio. Типы `EngineSource`, `AudioEngineCommand`, `AudioEngineReport` в shared/types.ts.
+- Свои звуки — kv `audio.customSounds`. URL файлов — `df-sound://sound/<id>`.
+- Окно audio создаётся по требованию и уничтожается, когда закрыто последнее другое окно (**Т07 с closeToTray — перепроверить**). Декодирование проверяется при открытии Sounds и при воспроизведении; при запуске — только наличие файлов.
+- Громкость = общая (настройки) × masterVolume пресета × lowerFactor на перерыве; mute — только на время работы. Звук, включённый сессией, гаснет при idle; включённый вручную — остаётся. `window.__dfAudio()` в окне audio — снимок для e2e.
+
+### Т04 — блокировка (построено)
+
+- `normalizeDomain(input) → {ok:true, domain, warningKey} | {ok:false, reasonKey}`, `isNormalizedDomain(s)`, `SYSTEM_DOMAINS`; `activeRulesFor(rules, ctx)`, `activeDomainsFor(rules, ctx)`, `isScheduleActive(schedule, now)`; `buildPac(domains, upstream, port)`.
+- `PacServer({blockedPage, onError})`: `start/stop/setPac/pacUrl(v)/selfCheck/address`; PAC — `http://127.0.0.1:<port>/deep-focus.pac?v=<время>`; `isOurPacUrl(url)`.
+- `SystemProxy {read, apply, restore, resolveProxyFor}` — **все async** (отступление от синхронной подписи). `ProxySettings = {proxyEnable, proxyServer, proxyOverride, autoConfigUrl, defaultConnectionSettings, savedLegacySettings}`.
+- `ctx.services.blocker: BlockerController`: `applyFor(ctx)`, `deactivate()`, `status()`, `on('status')`, `requestUnlock()`, `confirmUnlock(phrase)`, `recheck(ctx?)`, `restoreOnStartup()`, `cleanup()` — async, наружу не бросают. kv: `blocker.proxySnapshot`, `blocker.consentAt`. `BlockerStatus.consentGiven`; `window.deepFocus.blocker.giveConsent()`. Причины статуса — ключи `blocker.reason.*`; ошибки saveRule — исключение с ключом `blocker.invalid.*` в message.
+- **`--cleanup` и снятие блокировки при выходе (`will-quit`, second-instance с `--cleanup`) — внутри `registerBlocker`**; деинсталлятор Т08 вызывает `DeepFocus.exe --cleanup`.
+- Уведомление «Ошибка блокировки» пока идёт напрямую через Electron Notification с учётом `notifications.*` — **Т07 переводит на Notifier**. Статус `error` на Home — Т07. Тексты 4.8.2/4.8.3/4.16 для `docs/limitations.md` — Т08.
+- Тест реального реестра — `SystemProxy.registry.test.ts`, только с `DF_REAL_REGISTRY=1`.
+
+### Т06 — задачи и аналитика (построено)
+
+- `ctx.services.tasks: TaskService` (`list/create/update/remove/projects/saveProject/deleteProject/totals/applyOutcome/onIntervalEnded/pendingOutcome/setOutcome/dismissOutcome`); `ctx.services.analytics: AnalyticsService` (`summary/history/goalProgress/streak/recordAchievements/achievements`). `recordAchievements` возвращает **новые** записи — Notifier (Т07) по ним шлёт уведомление о дневной цели.
+- Типы: `TaskDraft`, `TaskPatch` (теперь только в shared/types.ts), `TimeTotals`, `OutcomePrompt`, `BreakdownEntry`, `AccuracyBlock`, `ProjectGoalProgress`; `AnalyticsSummary` (completionRate, avgSessionMs, byProject, byTask, hourlyMs[24], accuracy); `GoalProgress.projects[]`.
+- IPC: `tasks:totals|pendingOutcome|setOutcome|dismissOutcome`, рассылка `tasks:outcomeChanged`, `analytics:achievements`. `src/shared/periods.ts`: `dayRange/weekRange/monthRange/dayStart/addDays/weekStart/dayKey` (неделя с понедельника).
+- Достижения: id `daily:YYYY-MM-DD`, `weekly:<понедельник>`, `project:<id>:<понедельник>`. Сессии в дневной цели — только completed/recoveredCompleted. Серия — дни с любой Focus-активностью; сегодня без работы серию не рвёт.
+- Home: `OutcomeCard`, `GoalProgressCard`, `QuickTask` (Enter создаёт задачу и стартует Focus, если таймер idle).
+- **Цели задаются только в настройках, а вкладки для них нет — Т07.**
+
+### Т07 — система (построено)
+
+- hotkeys: preload `validate(accel, action)`, `results()`, `assign(action, accel): HotkeyResult`, `setRecording(on)`, `onResults(cb)`; рассылка `hotkeys:resultsChanged`. `HotkeyManager({host, actions, onError})`; `validateHotkey`, `normalizeAccelerator`; причины `system.hotkeys.reason.{invalid,system,needsModifier,duplicate,taken}`.
+- `Notifier({settings, t, show}).notify(event, {minutes?, reasonKey?})`, `bindTimer(timer, achievements)`; `ctx.services.notifier`. **`APP_USER_MODEL_ID='com.deepfocus.app'` — Т08 берёт тот же appId.**
+- `ctx.services.tray: TrayManager{create, refresh(snap), destroy}` (значок рисуется кодом — Т08 может заменить на файл из `resources/`); `ctx.services.lifecycle: {requestQuit(), isQuitting(), attachMainWindow(win)}`; `HIDDEN_ARG='--hidden'` (запуск свёрнутым).
+- `app.quit(): Promise<boolean>`, `app.dataPath()`; `settings.deleteAllData(confirmWord)` → `{ok:true} | {ok:false, errorKey}`; `settings/dataReset`: `requestDeleteAllData`, `deleteAllDataIfRequested(userData, dbPath)`, `isSafeUserDataDir(dir, home)`; `DEEPFOCUS_NO_RELAUNCH` — только e2e.
+- Автозапуск (`setLoginItemSettings`) включается только в установленном приложении — Т08 проверяет на собранном.
+
+### Т08 — поставка (построено)
+
+- `UpdateService({source:{owner,repo}, isPackaged, createUpdater, log?})`: `checkNow()/status()/installOnQuit()`; `isSourceConfigured(source)`; `UPDATE_OWNER/UPDATE_REPO` в `src/main/updater/source.ts` должны совпадать с `publish` в `electron-builder.yml` (тест). Карточка обновлений — `Settings/UpdatesCard.tsx` в General.
+- `npm run dist` = electron-vite build + `electron-builder --win --publish never` → `release/Deep Focus Setup <версия>.exe` (NSIS per-user, без UAC; `npmRebuild: false` — нет Visual Studio, better-sqlite3 из prebuild; без подписи). `build/installer.nsh` — вызов `--cleanup` при удалении. Иконки — `build/make-icons.mjs` → `resources/`.
+- e2e установленной сборки — `DF_INSTALLED_EXE=<путь> npx playwright test tests/e2e/acceptance.spec.ts`.
