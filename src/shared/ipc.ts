@@ -96,6 +96,12 @@ export const IPC = {
   hotkeys: {
     validate: 'hotkeys:validate',
     results: 'hotkeys:results',
+    /** назначить сочетание действию (проверка + регистрация + сохранение). Т07 */
+    assign: 'hotkeys:assign',
+    /** окно записывает сочетание: временно снять глобальные регистрации. Т07 */
+    setRecording: 'hotkeys:setRecording',
+    /** рассылка: HotkeyResult[] */
+    resultsChanged: 'hotkeys:resultsChanged',
   },
   app: {
     version: 'app:version',
@@ -104,6 +110,8 @@ export const IPC = {
     updateStatus: 'app:updateStatus',
     logPath: 'app:logPath',
     modules: 'app:modules',
+    /** папка данных пользователя (userData). Т07 */
+    dataPath: 'app:dataPath',
     /** рассылка: { key: string } — i18n-ключ сообщения пользователю (например, база восстановлена) */
     notice: 'app:notice',
   },

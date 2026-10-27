@@ -1,7 +1,7 @@
 // Модуль blocker: BlockerController + PacServer + SystemProxy (Windows), IPC, связь с таймером,
 // планировщик расписаний, восстановление при запуске, снятие при выходе и по --cleanup (деинсталлятор).
-import { app, Notification } from 'electron';
-import { translate, type MessageKey } from '../../shared/i18n';
+import { app } from 'electron';
+import { translate } from '../../shared/i18n';
 import { ru } from '../../shared/i18n/ru';
 import { en } from '../../shared/i18n/en';
 import { IPC } from '../../shared/ipc';
@@ -93,16 +93,11 @@ export async function registerBlocker(ctx: MainContext): Promise<void> {
   });
   ctx.services.blocker = controller;
 
+  /** Уведомление «Ошибка блокировки» — через Notifier (Т07): он сам смотрит notifications.*. */
   function notifyFailure(reasonKey: string): void {
-    const { notifications } = settings.get();
-    if (!notifications.enabled || !notifications.blockerError || !Notification.isSupported()) return;
-    const toast = new Notification({
-      title: ctx.t('blocker.notify.errorTitle'),
-      body: ctx.t(reasonKey as MessageKey),
-      silent: notifications.silent,
-    });
-    toast.on('click', () => ctx.showMainWindow());
-    toast.show();
+    const notifier = ctx.services.notifier;
+    if (notifier) notifier.notify('blockerError', { reasonKey });
+    else logger.warn('blocker', `failure not notified (notify module is down): ${reasonKey}`);
   }
 
   /** Контекст блокировки из текущего снимка таймера и настроек. */

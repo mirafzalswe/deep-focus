@@ -1,20 +1,20 @@
-// Точка входа main: single-instance, журнал, база, настройки, главное окно, регистрация модулей.
-// Дальше этот файл меняет только Т07 (жизненный цикл); модули живут в своих папках.
+// Точка входа main: single-instance, журнал, база, настройки, главное окно, регистрация модулей,
+// жизненный цикл (Т07): окно закрывается в трей, запуск свёрнутым (--hidden), выход — через Lifecycle.
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, session } from 'electron';
 import { translate } from '../shared/i18n';
 import type { ModuleStatus } from '../shared/types';
 import { registerAnalytics } from './analytics';
-import { createMainWindow, registerApp } from './app';
+import { createMainWindow, HIDDEN_ARG, registerApp } from './app';
 import { registerAudio } from './audio';
-import { registerBlocker } from './blocker';
+import { CLEANUP_ARG, registerBlocker } from './blocker';
 import type { MainContext } from './context';
 import { openStorage, openStorageSafe, type Storage } from './db';
 import { registerHotkeys } from './hotkeys';
 import { setTrustedOrigins } from './ipc';
 import { createLogger } from './logger';
 import { initModules, type ModuleDef } from './modules';
-import { registerNotify } from './notify';
+import { APP_USER_MODEL_ID, registerNotify } from './notify';
 import { deleteAllDataIfRequested, registerSettings, SettingsManager } from './settings';
 import { registerTasks } from './tasks';
 import { registerTimer } from './timer';
@@ -29,6 +29,8 @@ const isDev = !app.isPackaged;
 if (process.env.DEEPFOCUS_USER_DATA) app.setPath('userData', process.env.DEEPFOCUS_USER_DATA);
 
 const userData = app.getPath('userData');
+// Имя и группировка уведомлений Windows (§8.1); без AppUserModelID они подписаны как «Electron».
+app.setAppUserModelId(APP_USER_MODEL_ID);
 const logger = createLogger(userData, { console: isDev });
 
 process.on('uncaughtException', (err) => logger.error('main', 'uncaughtException', err));
@@ -50,11 +52,14 @@ const MODULES: ModuleDef<MainContext>[] = [
 ];
 
 let mainWindow: BrowserWindow | null = null;
+let context: MainContext | null = null;
 
 function showMainWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     mainWindow = createMainWindow();
     mainWindow.on('closed', () => (mainWindow = null));
+    // Закрытие окна: в трей (closeToTray) или выход с вопросом о сессии.
+    context?.services.lifecycle?.attachMainWindow(mainWindow);
     return;
   }
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -92,7 +97,12 @@ async function bootstrap(): Promise<void> {
   lockDownSession();
 
   const dbPath = join(userData, 'deepfocus.db');
-  if (await deleteAllDataIfRequested(userData, dbPath)) logger.info('storage', 'all user data deleted on request');
+  try {
+    const deleted = await deleteAllDataIfRequested(userData, dbPath);
+    if (deleted) logger.info('storage', `all user data deleted on request: ${deleted.join(', ') || '(nothing)'}`);
+  } catch (err) {
+    logger.error('storage', 'delete all data failed', err);
+  }
   const { storage, corruptBackupPath } = openDatabase(dbPath);
   if (corruptBackupPath) logger.error('storage', `database was corrupt, moved to ${corruptBackupPath}`);
 
@@ -101,7 +111,7 @@ async function bootstrap(): Promise<void> {
     onListenerError: (err) => logger.error('settings', 'change listener failed', err),
   });
 
-  const ctx: MainContext = {
+  const ctx: MainContext = (context = {
     isDev,
     paths: {
       userData,
@@ -122,10 +132,11 @@ async function bootstrap(): Promise<void> {
     },
     t: (key, params) => translate(settings.get().general.language, key, params),
     moduleStatuses: () => [{ name: 'storage', state: 'ok', error: null }, ...statuses],
-  };
+  });
 
   statuses = await initModules(MODULES, ctx, logger);
-  showMainWindow();
+  // Автозапуск с Windows (--hidden) стартует в трей; без трея окно показывается всегда.
+  if (!(process.argv.includes(HIDDEN_ARG) && ctx.services.tray)) showMainWindow();
 
   if (corruptBackupPath) {
     const win = ctx.mainWindow();
@@ -144,10 +155,14 @@ if (!app.requestSingleInstanceLock()) {
   // Второй экземпляр: первый получит 'second-instance' и покажет своё окно; этот завершается сразу.
   app.exit(0);
 } else {
-  app.on('second-instance', () => {
-    if (app.isReady()) showMainWindow();
+  app.on('second-instance', (_event, argv) => {
+    // --cleanup (деинсталлятор) обрабатывает модуль blocker; окно не нужно.
+    if (app.isReady() && !argv.includes(CLEANUP_ARG)) showMainWindow();
   });
-  app.on('window-all-closed', () => app.quit());
+  // Окна закрываются в трей; без трея (модуль не поднялся) закрытие последнего окна — выход.
+  app.on('window-all-closed', () => {
+    if (!context?.services.tray || context.services.lifecycle?.isQuitting()) app.quit();
+  });
   app
     .whenReady()
     .then(bootstrap)

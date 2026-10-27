@@ -1,5 +1,5 @@
 import { IPC } from '../../shared/ipc';
-import type { AppSettings, FileActionResult, SettingsPatch } from '../../shared/types';
+import type { AppSettings, DeleteDataResult, FileActionResult, SettingsPatch } from '../../shared/types';
 import { invoke, subscribe } from '../bridge';
 
 export const settings = {
@@ -10,5 +10,6 @@ export const settings = {
   exportBackup: () => invoke<FileActionResult>(IPC.settings.exportBackup),
   importBackup: () => invoke<FileActionResult>(IPC.settings.importBackup),
   openDataFolder: () => invoke<void>(IPC.settings.openDataFolder),
-  deleteAllData: () => invoke<boolean>(IPC.settings.deleteAllData),
+  /** confirmWord — слово подтверждения (settings.deleteConfirmWord на любом языке). */
+  deleteAllData: (confirmWord: string) => invoke<DeleteDataResult>(IPC.settings.deleteAllData, confirmWord),
 };

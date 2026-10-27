@@ -1,12 +1,15 @@
 // IPC домена settings: get / patch / рассылка изменений / резервная копия / папка данных / удаление данных.
-import { readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 import { app, BrowserWindow, dialog, nativeTheme, shell } from 'electron';
+import { en } from '../../shared/i18n/en';
+import { ru } from '../../shared/i18n/ru';
 import { IPC } from '../../shared/ipc';
-import type { AppSettings, FileActionResult } from '../../shared/types';
+import type { AppSettings, DeleteDataResult, FileActionResult } from '../../shared/types';
+import { SNAPSHOT_KEY } from '../blocker';
 import type { MainContext } from '../context';
 import { handle } from '../ipc';
-import { isPlainObject } from '../validate';
+import { isPlainObject, v } from '../validate';
+import { deleteMarkerPath, requestDeleteAllData } from './dataReset';
 import { SettingsError } from './SettingsManager';
 
 const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
@@ -70,39 +73,32 @@ export function registerSettings(ctx: MainContext): void {
     if (error) logger.warn('settings', `openDataFolder: ${error}`);
   });
 
-  handle<[]>(IPC.settings.deleteAllData, [], async () => {
-    const win = BrowserWindow.getFocusedWindow() ?? ctx.mainWindow();
-    const options = {
-      type: 'warning' as const,
-      buttons: [ctx.t('common.delete'), ctx.t('common.cancel')],
-      defaultId: 1,
-      cancelId: 1,
-      message: ctx.t('settings.deleteAllData'),
-      detail: ctx.t('settings.deleteAllDataConfirm'),
-    };
-    const res = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
-    if (res.response !== 0) return false;
-    logger.info('settings', 'delete all data requested');
-    // Удаление — при следующем запуске, до открытия базы: обычный выход успевает снять блокировку и т.п.
-    await writeFile(deleteMarkerPath(ctx.paths.userData), String(Date.now()), 'utf8');
-    app.relaunch();
-    app.quit();
-    return true;
-  });
-}
-
-export const deleteMarkerPath = (userData: string) => join(userData, '.delete-all-data');
-
-/** Вызывается index.ts до открытия базы: если пользователь просил удалить все данные — удаляем. */
-export async function deleteAllDataIfRequested(userData: string, dbPath: string): Promise<boolean> {
-  const marker = deleteMarkerPath(userData);
-  try {
-    await readFile(marker);
-  } catch {
-    return false;
-  }
-  for (const suffix of ['', '-wal', '-shm']) await rm(dbPath + suffix, { force: true });
-  await rm(join(userData, 'sounds'), { recursive: true, force: true });
-  await rm(marker, { force: true });
-  return true;
+  // «Удалить все данные»: слово подтверждения вводится в окне; main проверяет его сам.
+  handle<[string]>(IPC.settings.deleteAllData, [v.str({ max: 100 })], (word): Promise<DeleteDataResult> =>
+    requestDeleteAllData(word, {
+      confirmWords: [ru.settings.deleteConfirmWord, en.settings.deleteConfirmWord],
+      disableBlocker: () => {
+        const was = settings.get().blocker.enabled;
+        if (was) settings.patch({ blocker: { enabled: false } });
+        return () => {
+          if (was) settings.patch({ blocker: { enabled: true } });
+        };
+      },
+      releaseBlocker: async () => {
+        await ctx.services.blocker?.cleanup();
+      },
+      proxyRestored: () => ctx.storage.kv.get(SNAPSHOT_KEY) === null,
+      stopActivity: () => {
+        ctx.services.timer?.stop();
+        ctx.services.audio?.stop({ fade: false });
+      },
+      writeMarker: () => writeFile(deleteMarkerPath(ctx.paths.userData), String(Date.now()), 'utf8'),
+      restart: () => {
+        logger.info('settings', 'delete all data: blocking released, restarting to delete');
+        // DEEPFOCUS_NO_RELAUNCH — для e2e: тест сам запускает приложение снова.
+        if (!process.env.DEEPFOCUS_NO_RELAUNCH) app.relaunch();
+        setImmediate(() => app.quit());
+      },
+    }),
+  );
 }

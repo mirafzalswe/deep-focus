@@ -328,6 +328,9 @@ export interface BackupFile {
   blockRules: BlockRule[];
 }
 
+/** «Удалить все данные»: ok — приложение перезапускается; иначе errorKey (i18n) и ничего не удалено. Т07 */
+export type DeleteDataResult = { ok: true } | { ok: false; errorKey: string };
+
 /** Результат действия с диалогом выбора файла. */
 export type FileActionResult = { ok: true; path: string } | { ok: false; cancelled: true } | { ok: false; errorKey: string };
 
