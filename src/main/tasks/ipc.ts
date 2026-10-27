@@ -1,14 +1,20 @@
-// ЗАГЛУШКА Т01 → заполняет Т06 (TaskService: задачи, проекты, applyOutcome).
-// Простой CRUD поверх Storage, чтобы оболочка могла работать с данными.
-import { randomUUID } from 'node:crypto';
+// Модуль tasks: TaskService + IPC. Результат Focus-сессии с задачей — карточка на Home (не модальная).
 import { IPC } from '../../shared/ipc';
-import type { Priority, Project, Task, TaskFilter, TaskStatus } from '../../shared/types';
+import type { Priority, Project, SessionOutcome, TaskDraft, TaskFilter, TaskPatch, TaskStatus } from '../../shared/types';
 import type { MainContext } from '../context';
 import { handle } from '../ipc';
 import { v } from '../validate';
+import { TaskService } from './TaskService';
+
+declare module '../context' {
+  interface Services {
+    tasks: TaskService;
+  }
+}
 
 const isPriority = v.oneOf<Priority>('low', 'medium', 'high');
 const isStatus = v.oneOf<TaskStatus>('open', 'inProgress', 'done', 'cancelled');
+const isOutcome = v.oneOf<SessionOutcome>('done', 'partial', 'later', 'cancelled');
 const isFilter = v.optional(
   v.object({ projectId: v.optional(v.nullable(v.id())), status: v.optional(v.array(isStatus, { max: 4 })) }),
 );
@@ -20,17 +26,9 @@ const taskFields = {
   plannedMin: v.nullable(v.int(1, 10_000)),
   status: isStatus,
 };
-type TaskDraft = Pick<Task, 'title'> & Partial<Pick<Task, 'description' | 'projectId' | 'priority' | 'plannedMin' | 'status'>>;
-type TaskPatch = Partial<Pick<Task, 'title' | 'description' | 'projectId' | 'priority' | 'plannedMin' | 'status'>>;
-const isDraft = v.object({
-  title: taskFields.title,
-  description: v.optional(taskFields.description),
-  projectId: v.optional(taskFields.projectId),
-  priority: v.optional(taskFields.priority),
-  plannedMin: v.optional(taskFields.plannedMin),
-  status: v.optional(taskFields.status),
-});
-const isPatch = v.object(Object.fromEntries(Object.entries(taskFields).map(([k, c]) => [k, v.optional(c)])));
+const optionalFields = Object.fromEntries(Object.entries(taskFields).map(([k, c]) => [k, v.optional(c)]));
+const isDraft = v.object({ ...optionalFields, title: taskFields.title });
+const isPatch = v.object(optionalFields);
 const isProject = v.object({
   id: v.id(),
   name: v.str({ min: 1, max: 100 }),
@@ -40,32 +38,34 @@ const isProject = v.object({
 });
 
 export function registerTasks(ctx: MainContext): void {
-  const { storage } = ctx;
-  handle<[TaskFilter | undefined]>(IPC.tasks.list, [isFilter], (filter) => storage.tasks.list(filter));
-  handle<[TaskDraft]>(IPC.tasks.create, [isDraft], (draft) => {
-    const now = Date.now();
-    const task: Task = {
-      id: randomUUID(),
-      description: '',
-      projectId: null,
-      priority: 'medium',
-      plannedMin: null,
-      status: 'open',
-      ...draft,
-      createdAt: now,
-      updatedAt: now,
-    };
-    storage.tasks.insert(task);
-    return task;
+  const { storage, logger } = ctx;
+  const service = new TaskService({
+    storage,
+    setSessionOutcome: (sessionId, outcome) => ctx.services.timer?.setOutcome(sessionId, outcome),
+    onPromptChange: (prompt) => ctx.broadcast(IPC.tasks.outcomeChanged, prompt),
   });
-  handle<[string, TaskPatch]>(IPC.tasks.update, [v.id(), isPatch], (id, patch) =>
-    storage.tasks.update(id, { ...patch, updatedAt: Date.now() }),
-  );
-  handle<[string]>(IPC.tasks.remove, [v.id()], (id) => storage.tasks.remove(id));
-  handle<[]>(IPC.tasks.projects, [], () => storage.projects.list());
-  handle<[Project]>(IPC.tasks.saveProject, [isProject], (p) => {
-    storage.projects.upsert(p);
-    return p;
+  ctx.services.tasks = service;
+
+  ctx.services.timer?.on('intervalEnded', (record) => {
+    try {
+      service.onIntervalEnded(record);
+    } catch (err) {
+      logger.error('tasks', 'outcome prompt failed', err);
+    }
   });
-  handle<[string]>(IPC.tasks.deleteProject, [v.id()], (id) => storage.projects.remove(id));
+
+  handle<[TaskFilter | undefined]>(IPC.tasks.list, [isFilter], (filter) => service.list(filter));
+  handle<[TaskDraft]>(IPC.tasks.create, [isDraft], (draft) => service.create(draft));
+  handle<[string, TaskPatch]>(IPC.tasks.update, [v.id(), isPatch], (id, patch) => service.update(id, patch));
+  handle<[string]>(IPC.tasks.remove, [v.id()], (id) => service.remove(id));
+  handle<[]>(IPC.tasks.projects, [], () => service.projects());
+  handle<[Project]>(IPC.tasks.saveProject, [isProject], (p) => service.saveProject(p));
+  handle<[string]>(IPC.tasks.deleteProject, [v.id()], (id) => service.deleteProject(id));
+  handle<[]>(IPC.tasks.totals, [], () => service.totals());
+  handle<[]>(IPC.tasks.pendingOutcome, [], () => service.pendingOutcome());
+  handle<[string, SessionOutcome]>(IPC.tasks.setOutcome, [v.id(), isOutcome], (sessionId, outcome) => {
+    service.setOutcome(sessionId, outcome);
+    ctx.broadcast(IPC.analytics.changed);
+  });
+  handle<[]>(IPC.tasks.dismissOutcome, [], () => service.dismissOutcome());
 }

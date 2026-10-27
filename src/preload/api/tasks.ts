@@ -1,9 +1,15 @@
 import { IPC } from '../../shared/ipc';
-import type { Project, Task, TaskFilter } from '../../shared/types';
-import { invoke } from '../bridge';
-
-type TaskDraft = Pick<Task, 'title'> & Partial<Pick<Task, 'description' | 'projectId' | 'priority' | 'plannedMin' | 'status'>>;
-type TaskPatch = Partial<Pick<Task, 'title' | 'description' | 'projectId' | 'priority' | 'plannedMin' | 'status'>>;
+import type {
+  OutcomePrompt,
+  Project,
+  SessionOutcome,
+  Task,
+  TaskDraft,
+  TaskFilter,
+  TaskPatch,
+  TimeTotals,
+} from '../../shared/types';
+import { invoke, subscribe } from '../bridge';
 
 export const tasks = {
   list: (filter?: TaskFilter) => invoke<Task[]>(IPC.tasks.list, filter),
@@ -13,4 +19,9 @@ export const tasks = {
   projects: () => invoke<Project[]>(IPC.tasks.projects),
   saveProject: (p: Project) => invoke<Project>(IPC.tasks.saveProject, p),
   deleteProject: (id: string) => invoke<void>(IPC.tasks.deleteProject, id),
+  totals: () => invoke<TimeTotals>(IPC.tasks.totals),
+  pendingOutcome: () => invoke<OutcomePrompt | null>(IPC.tasks.pendingOutcome),
+  setOutcome: (sessionId: string, outcome: SessionOutcome) => invoke<void>(IPC.tasks.setOutcome, sessionId, outcome),
+  dismissOutcome: () => invoke<void>(IPC.tasks.dismissOutcome),
+  onOutcomeChanged: (cb: (prompt: OutcomePrompt | null) => void) => subscribe<OutcomePrompt | null>(IPC.tasks.outcomeChanged, cb),
 };

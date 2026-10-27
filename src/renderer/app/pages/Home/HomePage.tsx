@@ -1,8 +1,11 @@
 // Главная (§10.2): режим, большой таймер, «Старт», текущая задача (Т02).
-// Звуковой профиль, статус блокировки и сводку дня добавляют Т04/Т05/Т06 — отдельными блоками ниже таймера.
+// Ниже таймера — быстрый ввод задачи, карточка результата и прогресс целей (Т06); звук и блокировку добавляют Т04/Т05.
 import { useT } from '../../../shared/settings';
 import { PageHeader } from '../../../shared/ui';
 import type { PageProps } from '../../routes';
+import { GoalProgressCard } from './GoalProgressCard';
+import { OutcomeCard } from './OutcomeCard';
+import { QuickTask } from './QuickTask';
 import { TimerPanel } from './TimerPanel';
 
 export default function HomePage(_props: PageProps) {
@@ -11,6 +14,11 @@ export default function HomePage(_props: PageProps) {
     <>
       <PageHeader title={t('nav.home')} />
       <TimerPanel />
+      <div className="mt-8 flex flex-col gap-4">
+        <OutcomeCard />
+        <QuickTask />
+        <GoalProgressCard />
+      </div>
     </>
   );
 }
