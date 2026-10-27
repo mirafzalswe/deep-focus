@@ -1,3 +1,16 @@
-// ЗАГЛУШКА Т01 → заполняет Т05: скрытое окно со звуковым движком (Web Audio, микшер, генераторы шумов).
-// Команды приходят через window.deepFocus.audioEngine.onCommand, статус уходит через reportStatus.
-export {};
+// Скрытое окно audio: команды приходят только из main (audioEngine.onCommand), ответы — reportStatus.
+import { AudioEngine } from './engine';
+
+const api = window.deepFocus.audioEngine;
+const engine = new AudioEngine((report) => api.reportStatus(report));
+
+// Снимок состояния для e2e-проверок (окно скрытое; в остальные окна не попадает)
+(window as unknown as { __dfAudio: () => ReturnType<AudioEngine['debugState']> }).__dfAudio = () => engine.debugState();
+
+window.addEventListener('error', (e) => api.reportStatus({ type: 'error', message: String(e.message).slice(0, 1000) }));
+window.addEventListener('unhandledrejection', (e) =>
+  api.reportStatus({ type: 'error', message: String(e.reason).slice(0, 1000) }),
+);
+
+api.onCommand((cmd) => engine.handle(cmd));
+api.reportStatus({ type: 'ready' });

@@ -109,6 +109,24 @@ export interface TaskFilter {
   status?: TaskStatus[];
 }
 
+type TaskEditable = 'description' | 'projectId' | 'priority' | 'plannedMin' | 'status';
+/** Новая задача: обязательно только название. */
+export type TaskDraft = Pick<Task, 'title'> & Partial<Pick<Task, TaskEditable>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | TaskEditable>>;
+
+/** Накопленное активное время Focus-сессий, мс: по задачам и по проектам. */
+export interface TimeTotals {
+  byTask: Record<string, number>;
+  byProject: Record<string, number>;
+}
+
+/** Завершённая Focus-сессия с задачей, результат которой ещё не отмечен (карточка на Home). */
+export interface OutcomePrompt {
+  sessionId: string;
+  taskId: string;
+  taskTitle: string;
+}
+
 // ── Блокировка ────────────────────────────────────────────────────────────
 export interface Schedule {
   days: number[]; // 0=вс..6=сб
@@ -140,6 +158,8 @@ export interface BlockerStatus {
   verifiedAt: number | null;
   strictLocked: boolean;
   unlockAvailableAt: number | null;
+  /** Пользователь прошёл экран согласия (§4.8.1); без него реестр не трогается. Т04. */
+  consentGiven: boolean;
 }
 
 export interface BlockContext {
@@ -189,6 +209,29 @@ export interface AudioStatus {
   missing: string[];
   error: string | null;
 }
+
+/** Источник дорожки для движка: файл по df-sound:// или генератор шума. */
+export type EngineSource = { type: 'url'; url: string } | { type: 'generated'; generator: 'white' | 'pink' | 'brown' };
+
+/** main → скрытое окно audio (канал audio:engine-command). */
+export type AudioEngineCommand =
+  | {
+      type: 'apply';
+      playing: boolean;
+      /** итоговое усиление мастера (громкость × уровень пресета × приглушение; 0 при mute) */
+      masterGain: number;
+      /** длительность затухания при переходе playing → false, мс */
+      fadeMs: number;
+      tracks: { soundId: string; source: EngineSource; gain: number }[];
+    }
+  | { type: 'probe'; requestId: number; items: { soundId: string; url: string }[] };
+
+/** скрытое окно audio → main (канал audio:engine-status). */
+export type AudioEngineReport =
+  | { type: 'ready' }
+  | { type: 'trackFailed'; soundId: string; reason: 'missing' | 'corrupt' }
+  | { type: 'probeResult'; requestId: number; results: { soundId: string; ok: boolean }[] }
+  | { type: 'error'; message: string };
 
 // ── Виджет ────────────────────────────────────────────────────────────────
 export type WidgetDisplayMode = 'compact' | 'standard' | 'expanded';
@@ -304,18 +347,52 @@ export interface Achievement {
   valueMin: number;
 }
 
-/** Сводка за период. Поля дополняет Т06 (только добавление). */
+/** Время и число Focus-сессий по проекту или задаче (id = null — «без проекта»/«без задачи»). */
+export interface BreakdownEntry {
+  id: string | null;
+  activeMs: number;
+  sessions: number;
+}
+
+/** «Точность учёта»: запланированное против фактического (только Focus-сессии). */
+export interface AccuracyBlock {
+  plannedMs: number;
+  activeMs: number;
+  pausedMs: number;
+  /** прерванные до плановой длительности */
+  earlyCount: number;
+  recoveredCount: number;
+}
+
+/** Сводка по Focus-сессиям за период; время — только activeMs. */
 export interface AnalyticsSummary {
   range: DateRange;
   focusActiveMs: number;
   completedSessions: number;
   interruptedSessions: number;
+  /** completed / (completed + interrupted); null — сессий нет */
+  completionRate: number | null;
+  avgSessionMs: number;
+  byProject: BreakdownEntry[];
+  byTask: BreakdownEntry[];
+  /** 24 значения: активные мс по часам суток (локальное время) */
+  hourlyMs: number[];
+  accuracy: AccuracyBlock;
+}
+
+export interface ProjectGoalProgress {
+  projectId: string;
+  name: string;
+  doneMin: number;
+  goalMin: number;
 }
 
 export interface GoalProgress {
   dailyMinutes: { done: number; goal: number };
   dailySessions: { done: number; goal: number };
   weeklyMinutes: { done: number; goal: number };
+  /** недельные цели проектов (только у проектов с целью) */
+  projects: ProjectGoalProgress[];
   streakDays: number | null;
 }
 
