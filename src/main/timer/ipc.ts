@@ -1,11 +1,19 @@
-// ЗАГЛУШКА Т01 → заполняет Т02 (TimerEngine: состояние, recovery, запись сессий).
-// Каналы и проверки аргументов уже на месте; команды пока возвращают снимок idle.
+// Модуль timer: TimerEngine + IPC + питание (сон/пробуждение) + восстановление при запуске.
+import { app, powerMonitor } from 'electron';
+import { BUILTIN_TIMER_PRESETS } from '../../shared/defaults';
 import { IPC } from '../../shared/ipc';
-import type { IntervalKind, SessionOutcome, TimerCommand, TimerPreset, TimerSnapshot } from '../../shared/types';
+import type { IntervalKind, SessionOutcome, TimerCommand } from '../../shared/types';
 import type { MainContext } from '../context';
 import { handle } from '../ipc';
-import { isTimerPreset } from '../settings/schema';
 import { isPlainObject, v } from '../validate';
+import { deleteTimerPreset, saveTimerPreset } from './presets';
+import { storageTimerStore, TimerEngine } from './TimerEngine';
+
+declare module '../context' {
+  interface Services {
+    timer: TimerEngine;
+  }
+}
 
 const isKind = v.oneOf<IntervalKind>('focus', 'shortBreak', 'longBreak');
 const isOutcome = v.oneOf<SessionOutcome>('done', 'partial', 'later', 'cancelled');
@@ -39,45 +47,48 @@ export const isTimerCommand = (x: unknown): x is TimerCommand => {
   }
 };
 
-function idleSnapshot(ctx: MainContext): TimerSnapshot {
-  return {
-    status: 'idle',
-    mode: 'pomodoro',
-    kind: 'focus',
-    presetId: ctx.settings.get().timer.activePresetId,
-    sessionId: null,
-    plannedMs: null,
-    startedAt: null,
-    endAt: null,
-    pausedAt: null,
-    pausedMs: 0,
-    suspendedMs: 0,
-    elapsedMs: 0,
-    remainingMs: null,
-    activeMs: 0,
-    completedFocusInCycle: 0,
-    taskId: null,
-    projectId: null,
-    recovered: false,
-    now: Date.now(),
-  };
-}
-
 export function registerTimer(ctx: MainContext): void {
-  const { storage } = ctx;
-  handle<[TimerCommand]>(IPC.timer.command, [isTimerCommand], () => idleSnapshot(ctx));
-  handle<[]>(IPC.timer.snapshot, [], () => idleSnapshot(ctx));
+  const { storage, settings, logger } = ctx;
+
+  const engine = new TimerEngine({
+    clock: { now: () => Date.now() },
+    store: storageTimerStore(storage),
+    settings: () => settings.get().timer,
+    onError: (message, err) => logger.error('timer', message, err),
+  });
+  ctx.services.timer = engine;
+
+  // Снимки — всем окнам (главное, виджет); тики идут тем же каналом.
+  engine.on('state', (snap) => ctx.broadcast(IPC.timer.state, snap));
+  engine.on('tick', (snap) => ctx.broadcast(IPC.timer.state, snap));
+  settings.on('change', (next, prev) => {
+    if (JSON.stringify(next.timer) !== JSON.stringify(prev.timer)) engine.refresh();
+  });
+
+  handle<[TimerCommand]>(IPC.timer.command, [isTimerCommand], (cmd) => engine.command(cmd));
+  handle<[]>(IPC.timer.snapshot, [], () => engine.snapshot());
   handle<[]>(IPC.timer.presets, [], () => storage.timerPresets.list());
-  handle<[TimerPreset]>(IPC.timer.savePreset, [isTimerPreset], (p) => {
-    storage.timerPresets.upsert(p);
-    return p;
+  handle<[unknown]>(IPC.timer.savePreset, [isPlainObject], (p) => {
+    const saved = saveTimerPreset(storage, p);
+    engine.refresh();
+    return saved;
   });
   handle<[string]>(IPC.timer.deletePreset, [v.id()], (id) => {
-    if (storage.timerPresets.get(id)?.builtin) return false;
-    storage.timerPresets.remove(id);
-    return true;
+    const removed = deleteTimerPreset(storage, id);
+    if (removed && settings.get().timer.activePresetId === id) {
+      settings.patch({ timer: { activePresetId: BUILTIN_TIMER_PRESETS[0]!.id } });
+    }
+    engine.refresh();
+    return removed;
   });
   handle<[string, SessionOutcome]>(IPC.timer.setOutcome, [v.id(), isOutcome], (sessionId, outcome) => {
-    storage.sessions.update(sessionId, { outcome });
+    engine.setOutcome(sessionId, outcome);
   });
+
+  powerMonitor.on('suspend', () => engine.onSuspend());
+  powerMonitor.on('resume', () => engine.onResume());
+  // Свежий heartbeat перед выходом: простой после него при следующем запуске уйдёт в suspendedMs.
+  app.on('before-quit', () => engine.heartbeat());
+
+  engine.recover(Date.now());
 }
