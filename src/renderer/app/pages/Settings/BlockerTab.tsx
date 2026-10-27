@@ -68,10 +68,16 @@ export default function BlockerTab() {
             className="w-24 text-right tabular-nums"
           />
         </Field>
-        <Field label={t('blocker.settings.scheduled')} hint={t('blocker.settings.scheduledHint')}>
+        {/* Strict во время сессии: выключение расписаний может снять действующий домен — main его отклонит;
+            включить можно всегда (блокировка только добавляется) */}
+        <Field
+          label={t('blocker.settings.scheduled')}
+          hint={(locked && blocker.scheduledEnabled ? lockedHint : undefined) ?? t('blocker.settings.scheduledHint')}
+        >
           <Toggle
             label={t('blocker.settings.scheduled')}
             checked={blocker.scheduledEnabled}
+            disabled={locked && blocker.scheduledEnabled}
             onChange={(scheduledEnabled) => void patch({ blocker: { scheduledEnabled } })}
           />
         </Field>

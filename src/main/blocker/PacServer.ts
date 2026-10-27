@@ -99,8 +99,18 @@ export class PacServer {
 
   private onRequest(req: IncomingMessage, res: ServerResponse): void {
     res.on('error', () => undefined);
+    // Браузер не угадывает тип ответа: PAC и страница блокировки не исполняются как скрипт чужой страницы
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     const url = req.url ?? '';
     if (req.method === 'GET' && (url === PAC_PATH || url.startsWith(`${PAC_PATH}?`))) {
+      // PAC (список блокировки и прокси пользователя) — только тому, кто пришёл по нашему адресу:
+      // страница сайта, угадавшего порт (в т. ч. через DNS rebinding), шлёт свой Host
+      const port = this.address()?.port;
+      if (req.headers.host !== `${HOST}:${port}`) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', Connection: 'close' });
+        res.end('Forbidden');
+        return;
+      }
       res.writeHead(200, {
         'Content-Type': 'application/x-ns-proxy-autoconfig; charset=utf-8',
         'Cache-Control': 'no-store',

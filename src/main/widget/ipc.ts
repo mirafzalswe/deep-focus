@@ -1,5 +1,5 @@
 // Модуль widget: WidgetManager на Electron, IPC домена, контекстное меню, временные горячие клавиши.
-import { BrowserWindow, Menu, Notification, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, Notification, type MenuItemConstructorOptions } from 'electron';
 import { IPC } from '../../shared/ipc';
 import type { Anchor, WidgetDisplayMode } from '../../shared/types';
 import type { MainContext, Services } from '../context';
@@ -26,6 +26,8 @@ function timerFeed(services: Partial<Services>): TimerFeed | null {
 
 export function registerWidget(ctx: MainContext): void {
   let window: BrowserWindow | null = null;
+  let quitting = false;
+  app.on('before-quit', () => (quitting = true));
 
   const manager: WidgetManager = new WidgetManager({
     settings: ctx.settings,
@@ -36,11 +38,18 @@ export function registerWidget(ctx: MainContext): void {
         { ...init, title: ctx.t('widget.windowTitle') },
         { onSystemMenu: () => showMenu() },
       );
-      window = handleWin.window;
-      window.on('closed', () => (window = null));
+      const created = handleWin.window;
+      window = created;
+      // после падения новое окно создаётся раньше, чем сюда доходит 'closed' старого
+      created.on('closed', () => {
+        if (window === created) window = null;
+      });
       return handleWin.port;
     },
     onClickThroughRestored: () => notifyClickThroughRestored(),
+    // Выход: окно виджета закрывается насовсем (не «Скрыть» и не пересоздание)
+    isQuitting: () => quitting || (ctx.services.lifecycle?.isQuitting() ?? false),
+    onError: (message, err) => ctx.logger.warn('widget', message, err),
   });
 
   function showMenu(): void {

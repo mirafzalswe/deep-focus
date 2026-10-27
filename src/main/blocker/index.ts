@@ -1,6 +1,6 @@
-export { registerBlocker, CLEANUP_ARG, CONSENT_KEY, SNAPSHOT_KEY } from './ipc';
-export { BlockerController, REASON } from './BlockerController';
-export type { BlockerDeps, BlockerStore, PacHost } from './BlockerController';
+export { registerBlocker, CLEANUP_ARG, CONSENT_KEY, SNAPSHOT_KEY, StrictLockedError } from './ipc';
+export { BlockerController, REASON, STRICT_LOCKED_KEY } from './BlockerController';
+export type { BlockerDeps, BlockerStore, PacHost, StrictSettings } from './BlockerController';
 export { normalizeDomain, isNormalizedDomain, SYSTEM_DOMAINS } from './domain';
 export { activeDomainsFor, activeRulesFor, isScheduleActive } from './rules';
 export { buildPac } from './pac';

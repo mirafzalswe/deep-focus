@@ -55,6 +55,19 @@ export const REASON = {
   restoreFailed: 'blocker.reason.restoreFailed',
 } as const;
 
+/** Настройки, которые Strict во время сессии не даёт менять (§4.7). */
+export interface StrictSettings {
+  blocker: AppSettings['blocker'];
+  timer: Pick<AppSettings['timer'], 'keepBlockingOnPause'>;
+}
+
+/** i18n-ключ отказа: изменение сняло бы блокировку, а Strict во время сессии этого не позволяет. */
+export const STRICT_LOCKED_KEY = 'blocker.invalid.strictLocked';
+
+/** В after нет домена из before (сам домен или его родитель в after блокирует и поддомены). */
+const removesDomain = (before: readonly string[], after: readonly string[]) =>
+  before.some((d) => !after.some((a) => d === a || d.endsWith(`.${a}`)));
+
 const samePhrase = (a: string, b: string) =>
   a.trim().replace(/\s+/g, ' ').toLocaleLowerCase() === b.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 
@@ -140,6 +153,37 @@ export class BlockerController extends TypedEmitter<{ status: (s: BlockerStatus)
     });
   }
 
+  /**
+   * Strict во время сессии (§4.7): можно ли сохранить такой список правил. Нельзя, если он убирает домен,
+   * который блокируется сейчас (выключить правило, снять флажок периода, удалить, сменить домен).
+   */
+  allowsRules(next: readonly BlockRule[]): boolean {
+    const ctx = this.lockedContext();
+    if (!ctx) return true;
+    return !removesDomain(activeDomainsFor(this.deps.store.rules(), ctx), activeDomainsFor(next, ctx));
+  }
+
+  /**
+   * Strict во время сессии (§4.7): можно ли применить такие настройки. Включение, уровень, ожидание снятия
+   * и «блокировать на паузе» не меняются, пока сессия не кончилась или блокировка не снята фразой.
+   */
+  allowsSettings(next: StrictSettings, prev: StrictSettings): boolean {
+    const ctx = this.lockedContext();
+    if (!ctx) return true;
+    const locked =
+      next.blocker.enabled !== prev.blocker.enabled ||
+      next.blocker.level !== prev.blocker.level ||
+      next.blocker.strictUnlockDelaySec !== prev.blocker.strictUnlockDelaySec ||
+      next.timer.keepBlockingOnPause !== prev.timer.keepBlockingOnPause;
+    if (locked) return false;
+    // Scheduled Mode: выключение не должно снять действующий по расписанию домен
+    const rules = this.deps.store.rules();
+    return !removesDomain(
+      activeDomainsFor(rules, { ...ctx, scheduledEnabled: prev.blocker.scheduledEnabled }),
+      activeDomainsFor(rules, { ...ctx, scheduledEnabled: next.blocker.scheduledEnabled }),
+    );
+  }
+
   /** Перепроверить механизм; после сбоя — попробовать включить снова. */
   recheck(ctx?: BlockContext): Promise<BlockerStatus> {
     return this.serial(async () => {
@@ -180,6 +224,12 @@ export class BlockerController extends TypedEmitter<{ status: (s: BlockerStatus)
   }
 
   // ── внутреннее ──────────────────────────────────────────────────────────
+
+  /** Контекст на текущий момент, если Strict запер блокировку; иначе null. */
+  private lockedContext(): BlockContext | null {
+    if (!this.current.strictLocked || !this.lastCtx) return null;
+    return { ...this.lastCtx, now: this.deps.now() };
+  }
 
   private serial<T>(fn: () => Promise<T>): Promise<T> {
     const run = this.queue.then(fn, fn);
@@ -231,12 +281,19 @@ export class BlockerController extends TypedEmitter<{ status: (s: BlockerStatus)
     const { proxy, pac, store } = this.deps;
     try {
       let snap = store.getSnapshot();
-      if (!snap) {
-        const cur = await proxy.read();
-        if (cur.autoConfigUrl && !isOurPacUrl(cur.autoConfigUrl)) {
-          this.set({ ...this.make('unavailable', REASON.foreignPac), activeDomains: domains, activeRuleIds: ruleIds });
-          return;
+      const cur = await proxy.read();
+      if (cur.autoConfigUrl && !isOurPacUrl(cur.autoConfigUrl)) {
+        // Чужой PAC (корпоративный, VPN, пользователь) — не перезаписываем. Снимок, если был, устарел:
+        // его возврат стёр бы чужую настройку, поэтому он снимается без записи в реестр.
+        this.applied = null;
+        if (snap) {
+          store.clearSnapshot();
+          this.deps.onError?.('foreign AutoConfigURL replaced ours; snapshot dropped without writing');
         }
+        this.set({ ...this.make('unavailable', REASON.foreignPac), activeDomains: domains, activeRuleIds: ruleIds });
+        return;
+      }
+      if (!snap) {
         // наш PAC без снимка — хвост сбоя с потерянным снимком: исходно PAC не было
         snap = cur.autoConfigUrl ? { ...cur, autoConfigUrl: null } : cur;
         store.setSnapshot(snap); // до первого изменения
@@ -289,7 +346,14 @@ export class BlockerController extends TypedEmitter<{ status: (s: BlockerStatus)
     }
   }
 
+  /** Вернуть снимок — только поверх нашего PAC. Наш PAC убран или заменён чужим → снимок снимается без записи. */
   private async restoreTo(snap: ProxySettings): Promise<void> {
+    const cur = await this.deps.proxy.read();
+    if (!cur.autoConfigUrl || !isOurPacUrl(cur.autoConfigUrl)) {
+      if (cur.autoConfigUrl) this.deps.onError?.('AutoConfigURL is not ours any more; snapshot dropped without writing');
+      this.deps.store.clearSnapshot();
+      return;
+    }
     await this.deps.proxy.restore(snap);
     const after = await this.deps.proxy.read();
     if (after.autoConfigUrl !== snap.autoConfigUrl) throw new Error('AutoConfigURL was not restored');

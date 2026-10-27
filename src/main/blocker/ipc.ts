@@ -1,6 +1,6 @@
 // Модуль blocker: BlockerController + PacServer + SystemProxy (Windows), IPC, связь с таймером,
 // планировщик расписаний, восстановление при запуске, снятие при выходе и по --cleanup (деинсталлятор).
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { translate } from '../../shared/i18n';
 import { ru } from '../../shared/i18n/ru';
 import { en } from '../../shared/i18n/en';
@@ -10,10 +10,10 @@ import type { MainContext } from '../context';
 import { handle } from '../ipc';
 import { v, type Check } from '../validate';
 import { blockedPageHtml } from './blockedPage';
-import { BlockerController, type BlockerStore } from './BlockerController';
+import { BlockerController, STRICT_LOCKED_KEY, type BlockerStore } from './BlockerController';
 import { normalizeDomain } from './domain';
 import { PacServer } from './PacServer';
-import { createWindowsSystemProxy, type ProxySettings, type SystemProxy } from './SystemProxy';
+import { createWindowsSystemProxy, releaseOurPacSync, type ProxySettings, type SystemProxy } from './SystemProxy';
 
 declare module '../context' {
   interface Services {
@@ -47,6 +47,14 @@ export class BlockRuleError extends Error {
   constructor(public readonly reasonKey: string) {
     super(reasonKey);
     this.name = 'BlockRuleError';
+  }
+}
+
+/** Strict во время сессии: изменение сняло бы блокировку (§4.7). message — i18n-ключ. */
+export class StrictLockedError extends Error {
+  constructor() {
+    super(STRICT_LOCKED_KEY);
+    this.name = 'StrictLockedError';
   }
 }
 
@@ -168,6 +176,26 @@ export async function registerBlocker(ctx: MainContext): Promise<void> {
       app.quit();
     });
   });
+  // Выключение или выход из Windows: will-quit может не наступить, а наш адрес PAC в HKCU остался бы
+  // висеть (порт потом может занять чужой процесс). Снимаем его синхронно — только если он наш.
+  let sessionEnded = false;
+  const onSessionEnd = () => {
+    if (sessionEnded || process.platform !== 'win32') return;
+    sessionEnded = true;
+    if (minuteTimer) clearTimeout(minuteTimer);
+    try {
+      const released = releaseOurPacSync(store.getSnapshot());
+      store.clearSnapshot();
+      cleanedUp = true;
+      logger.info('blocker', released ? 'session end: proxy settings restored' : 'session end: nothing of ours in proxy settings');
+    } catch (err) {
+      // снимок остаётся — restoreOnStartup вернёт настройки при следующем запуске
+      logger.error('blocker', 'session end: restoring proxy settings failed', err);
+    }
+  };
+  for (const win of BrowserWindow.getAllWindows()) win.on('session-end', onSessionEnd);
+  app.on('browser-window-created', (_event, win) => win.on('session-end', onSessionEnd));
+
   // Деинсталлятор при запущенном приложении: второй экземпляр с --cleanup.
   app.on('second-instance', (_event, argv) => {
     if (!argv.includes(CLEANUP_ARG)) return;
@@ -185,6 +213,9 @@ export async function registerBlocker(ctx: MainContext): Promise<void> {
     if (duplicate) throw new BlockRuleError('blocker.invalid.duplicate');
     const rule: BlockRule = { ...input, pattern: n.domain, builtin: existing?.builtin ?? false };
     if (rule.builtin && existing && existing.pattern !== rule.pattern) throw new BlockRuleError('blocker.invalid.builtinPattern');
+    const list = storage.blockRules.list();
+    const next = existing ? list.map((r) => (r.id === rule.id ? rule : r)) : [...list, rule];
+    if (!controller.allowsRules(next)) throw new BlockRuleError(STRICT_LOCKED_KEY);
     storage.blockRules.upsert(rule);
     reapply();
     return { rule, warningKey: n.warningKey };
@@ -192,6 +223,7 @@ export async function registerBlocker(ctx: MainContext): Promise<void> {
   handle<[string]>(IPC.blocker.deleteRule, [v.id()], (id) => {
     const existing = storage.blockRules.get(id);
     if (existing?.builtin) throw new BlockRuleError('blocker.invalid.builtinDelete');
+    if (!controller.allowsRules(storage.blockRules.list().filter((r) => r.id !== id))) throw new BlockRuleError(STRICT_LOCKED_KEY);
     storage.blockRules.remove(id);
     reapply();
   });

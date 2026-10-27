@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/defaults';
 import type { AppSettings } from '../../shared/types';
+import { translateDynamic } from '../../shared/i18n';
 import { openStorage, type Storage } from '../db';
 import { SettingsError, SettingsManager } from './SettingsManager';
 
@@ -74,6 +75,17 @@ describe('SettingsManager', () => {
     expect(calls[0]![1].general.theme).toBe('dark');
   });
 
+  it('preview: проверяет патч и показывает результат, ничего не сохраняя и не рассылая', () => {
+    const m = new SettingsManager(storage);
+    let changed = 0;
+    m.on('change', () => changed++);
+    expect(m.preview({ blocker: { level: 'strict' } }).blocker.level).toBe('strict');
+    expect(m.get().blocker.level).toBe(DEFAULT_SETTINGS.blocker.level);
+    expect(() => m.preview({ blocker: { level: 'hard' } })).toThrow(SettingsError);
+    expect(changed).toBe(0);
+    expect(reopen().get()).toEqual(DEFAULT_SETTINGS);
+  });
+
   it('get() возвращает копию: правка снаружи не меняет состояние', () => {
     const m = new SettingsManager(storage);
     const s = m.get();
@@ -128,5 +140,52 @@ describe('Резервная копия', () => {
     for (const f of broken) expect(() => m.importBackup(f), JSON.stringify(f)?.slice(0, 80)).toThrow(SettingsError);
     expect(m.get()).toEqual(DEFAULT_SETTINGS);
     expect(storage.timerPresets.get('x')).toBeNull();
+  });
+
+  it('унаследованные имена в файле (__proto__, constructor, toString) → SettingsError, Object.prototype не меняется', () => {
+    const m = new SettingsManager(storage);
+    const toString = Object.prototype.toString;
+    const hasOwn = Object.prototype.hasOwnProperty;
+    const files = [
+      '{"app":"deep-focus","version":1,"settings":{"__proto__":{"toString":"x"}}}',
+      '{"app":"deep-focus","version":1,"settings":{"constructor":{"prototype":{"polluted":1}}}}',
+      '{"app":"deep-focus","version":1,"settings":{"toString":{"x":1}}}',
+      '{"app":"deep-focus","version":1,"settings":{"general":{"__proto__":{"polluted":1}}}}',
+      '{"app":"deep-focus","version":1,"settings":{"general":{"hasOwnProperty":"x"}}}',
+      '{"app":"deep-focus","version":1,"settings":{"prototype":{"polluted":1}}}',
+    ];
+    try {
+      for (const text of files) expect(() => m.importBackup(JSON.parse(text)), text).toThrow(SettingsError);
+      for (const text of files) expect(() => m.patch(JSON.parse(text).settings), text).toThrow(SettingsError);
+      expect(Object.prototype.toString).toBe(toString);
+      expect(Object.prototype.hasOwnProperty).toBe(hasOwn);
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      expect(m.get()).toEqual(DEFAULT_SETTINGS);
+    } finally {
+      Object.prototype.toString = toString;
+      Object.prototype.hasOwnProperty = hasOwn;
+      delete (Object.prototype as Record<string, unknown>).polluted;
+    }
+  });
+
+  it('унаследованные имена в базе пропускаются при чтении', () => {
+    storage.settings.set('general', JSON.parse('{"toString":"x","constructor":"y","theme":"light"}'));
+    const s = new SettingsManager(storage).get();
+    expect(s.general).toEqual({ ...DEFAULT_SETTINGS.general, theme: 'light' });
+    expect(Object.hasOwn(s.general, 'toString')).toBe(false);
+  });
+});
+
+describe('Сообщение «база не открылась» (§12.3)', () => {
+  it('на обоих языках: изменения не сохранятся, путь к базе и к журналу', () => {
+    const params = { path: 'C:\\data\\deepfocus.db', log: 'C:\\data\\logs\\deepfocus.log' };
+    for (const lang of ['ru', 'en'] as const) {
+      const text = translateDynamic(lang, 'settings.dbUnavailable', params);
+      expect(text, lang).not.toContain('settings.dbUnavailable');
+      expect(text, lang).toContain(params.path);
+      expect(text, lang).toContain(params.log);
+    }
+    expect(translateDynamic('ru', 'settings.dbUnavailable', params)).toMatch(/не сохранятся/);
+    expect(translateDynamic('en', 'settings.dbUnavailable', params)).toMatch(/not be saved/);
   });
 });

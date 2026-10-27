@@ -25,10 +25,13 @@ function scheduleSummary(t: TFunction, s: Schedule): string {
 export function RulesCard({
   rules,
   activeRuleIds,
+  strictLocked,
   reload,
 }: {
   rules: BlockRule[];
   activeRuleIds: string[];
+  /** Strict во время сессии: действующие правила нельзя ослабить (main тоже отклонит, §4.7). */
+  strictLocked: boolean;
   reload: () => Promise<void>;
 }) {
   const t = useT();
@@ -85,6 +88,7 @@ export function RulesCard({
                   key={rule.id}
                   rule={rule}
                   active={active.has(rule.id)}
+                  locked={strictLocked && active.has(rule.id)}
                   errorKey={error?.id === rule.id ? error.key : null}
                   onSave={save}
                   onDelete={remove}
@@ -175,15 +179,26 @@ function AddRule({ onAdded }: { onAdded: () => Promise<void> }) {
   );
 }
 
-function FlagChip({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function FlagChip({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        'rounded-md border px-2 py-1 text-xs transition-colors',
+        'rounded-md border px-2 py-1 text-xs transition-colors disabled:pointer-events-none disabled:opacity-40',
         checked ? 'border-accent bg-accent/15 text-fg' : 'border-line text-muted hover:text-fg',
       )}
     >
@@ -195,12 +210,15 @@ function FlagChip({ label, checked, onChange }: { label: string; checked: boolea
 function RuleRow({
   rule,
   active,
+  locked,
   errorKey,
   onSave,
   onDelete,
 }: {
   rule: BlockRule;
   active: boolean;
+  /** Strict во время сессии и правило действует: выключить, снять флажок, сменить расписание или удалить нельзя. */
+  locked: boolean;
   errorKey: string | null;
   onSave: (r: BlockRule) => Promise<void>;
   onDelete: (r: BlockRule) => Promise<void>;
@@ -212,30 +230,62 @@ function RuleRow({
   const schedule = rule.schedule;
 
   return (
-    <li className="px-3 py-2.5" data-rule-pattern={rule.pattern} data-rule-active={active || undefined}>
+    <li
+      className="px-3 py-2.5"
+      data-rule-pattern={rule.pattern}
+      data-rule-active={active || undefined}
+      data-rule-locked={locked || undefined}
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Toggle label={`${t('blocker.rules.enabledLabel')}: ${rule.pattern}`} checked={rule.enabled} onChange={(enabled) => set({ enabled })} />
+        <Toggle
+          label={`${t('blocker.rules.enabledLabel')}: ${rule.pattern}`}
+          checked={rule.enabled}
+          disabled={locked}
+          onChange={(enabled) => set({ enabled })}
+        />
         <div className={cx('min-w-40 flex-1 text-sm', rule.enabled ? 'text-fg' : 'text-faint')}>
           {rule.pattern}
           {rule.builtin && <span className="ml-2 text-xs text-faint">{t('blocker.rules.builtin')}</span>}
           {active && <span className="ml-2 rounded bg-ok/15 px-1.5 py-0.5 text-xs text-ok">{t('blocker.rules.activeNow')}</span>}
         </div>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('blocker.rules.flagsLabel')}>
-          <FlagChip label={t('blocker.rules.focus')} checked={rule.duringFocus} onChange={(duringFocus) => set({ duringFocus })} />
-          <FlagChip label={t('blocker.rules.shortBreak')} checked={rule.duringShortBreak} onChange={(duringShortBreak) => set({ duringShortBreak })} />
-          <FlagChip label={t('blocker.rules.longBreak')} checked={rule.duringLongBreak} onChange={(duringLongBreak) => set({ duringLongBreak })} />
+          <FlagChip label={t('blocker.rules.focus')} checked={rule.duringFocus} disabled={locked} onChange={(duringFocus) => set({ duringFocus })} />
+          <FlagChip
+            label={t('blocker.rules.shortBreak')}
+            checked={rule.duringShortBreak}
+            disabled={locked}
+            onChange={(duringShortBreak) => set({ duringShortBreak })}
+          />
+          <FlagChip
+            label={t('blocker.rules.longBreak')}
+            checked={rule.duringLongBreak}
+            disabled={locked}
+            onChange={(duringLongBreak) => set({ duringLongBreak })}
+          />
         </div>
-        <Button variant="ghost" className="px-2 py-1 text-xs" aria-expanded={editing} onClick={() => setEditing((v) => !v)}>
+        <Button
+          variant="ghost"
+          className="px-2 py-1 text-xs disabled:opacity-40"
+          aria-expanded={editing && !locked}
+          disabled={locked}
+          onClick={() => setEditing((v) => !v)}
+        >
           {schedule ? scheduleSummary(t, schedule) : t('blocker.actions.schedule')}
         </Button>
         {!rule.builtin && (
-          <Button variant="ghost" className="px-2 py-1 text-xs" aria-label={`${t('blocker.actions.delete')}: ${rule.pattern}`} onClick={() => void onDelete(rule)}>
+          <Button
+            variant="ghost"
+            className="px-2 py-1 text-xs disabled:opacity-40"
+            aria-label={`${t('blocker.actions.delete')}: ${rule.pattern}`}
+            disabled={locked}
+            onClick={() => void onDelete(rule)}
+          >
             {t('blocker.actions.delete')}
           </Button>
         )}
       </div>
       {errorKey && <p className="mt-1.5 text-xs text-danger">{translateDynamic(lang, errorKey)}</p>}
-      {editing && <ScheduleEditor schedule={schedule} onChange={(s) => set({ schedule: s })} onDone={() => setEditing(false)} />}
+      {editing && !locked && <ScheduleEditor schedule={schedule} onChange={(s) => set({ schedule: s })} onDone={() => setEditing(false)} />}
     </li>
   );
 }

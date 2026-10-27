@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/defaults';
 import type { AppSettings, BlockContext, BlockerStatus, BlockRule } from '../../shared/types';
-import { BlockerController, type BlockerStore, type PacHost } from './BlockerController';
+import { translateDynamic } from '../../shared/i18n';
+import { BlockerController, STRICT_LOCKED_KEY, type BlockerStore, type PacHost } from './BlockerController';
 import type { ProxySettings, SystemProxy } from './SystemProxy';
 
 const ORIGINAL: ProxySettings = {
@@ -195,6 +196,43 @@ describe('BlockerController', () => {
     expect(t.registry.autoConfigUrl).toBe('http://wpad.corp/wpad.dat');
   });
 
+  it('VPN/пользователь поставил свой PAC во время сессии → конец сессии не трогает ни его, ни двоичные настройки; снимок снят (§4.12)', async () => {
+    const t = setup();
+    expect((await t.controller.applyFor(focus())).state).toBe('active');
+    t.registry.autoConfigUrl = 'http://vpn.corp/proxy.pac';
+    t.registry.defaultConnectionSettings = 'VPN';
+    t.log.length = 0;
+    const s = await t.controller.applyFor(idle());
+    expect(s.state).toBe('off');
+    expect(t.registry.autoConfigUrl).toBe('http://vpn.corp/proxy.pac');
+    expect(t.registry.defaultConnectionSettings).toBe('VPN');
+    expect(t.log).not.toContain('restore');
+    expect(t.kv.has('snap')).toBe(false);
+  });
+
+  it('смена правил при чужом PAC поверх нашего (снимок есть) → unavailable/foreignPac, чужой PAC не перезаписан (§4.13)', async () => {
+    const t = setup();
+    await t.controller.applyFor(focus());
+    t.registry.autoConfigUrl = 'http://vpn.corp/proxy.pac';
+    t.log.length = 0;
+    const s = await t.controller.applyFor(focus({ timerKind: 'shortBreak' }));
+    expect(s).toMatchObject({ state: 'unavailable', reasonKey: 'blocker.reason.foreignPac' });
+    expect(t.registry.autoConfigUrl).toBe('http://vpn.corp/proxy.pac');
+    expect(t.log).not.toContain('apply');
+    expect(t.log).not.toContain('restore');
+    expect(t.kv.has('snap')).toBe(false);
+  });
+
+  it('restoreOnStartup: снимок есть, но в реестре уже чужой PAC → ничего не пишется, снимок снят', async () => {
+    const t = setup({ registry: { autoConfigUrl: 'http://vpn.corp/proxy.pac', defaultConnectionSettings: 'VPN' } });
+    t.kv.set('snap', ORIGINAL);
+    await t.controller.restoreOnStartup();
+    expect(t.registry.autoConfigUrl).toBe('http://vpn.corp/proxy.pac');
+    expect(t.registry.defaultConnectionSettings).toBe('VPN');
+    expect(t.log).not.toContain('restore');
+    expect(t.kv.has('snap')).toBe(false);
+  });
+
   it('ручной ProxyServer пользователя остаётся для прочих сайтов', async () => {
     const t = setup({ registry: { proxyEnable: 1, proxyServer: 'proxy.corp:3128', proxyOverride: '<local>' } });
     expect((await t.controller.applyFor(focus())).state).toBe('active');
@@ -288,6 +326,61 @@ describe('BlockerController', () => {
     const off = await t.controller.confirmUnlock('  я хочу ОТВЛЕЧЬСЯ ');
     expect(off).toMatchObject({ state: 'off', strictLocked: false, unlockAvailableAt: null });
     expect(t.registry).toEqual(ORIGINAL);
+  });
+
+  it('Strict во время сессии: правила и настройки, снимающие блокировку, отклоняются (§4.7)', async () => {
+    const rules = [rule('youtube.com'), rule('reddit.com'), rule('m.youtube.com', { id: 'sub' }), rule('vk.com', { enabled: false })];
+    const t = setup({ blocker: { level: 'strict' }, rules });
+    expect(await t.controller.applyFor(focus())).toMatchObject({ state: 'active', strictLocked: true });
+    const prev = { blocker: t.settings.blocker, timer: { keepBlockingOnPause: true } };
+    const edit = (id: string, patch: Partial<BlockRule>) => rules.map((r) => (r.id === id ? { ...r, ...patch } : r));
+
+    // убирают действующий домен — нельзя
+    expect(t.controller.allowsRules(edit('r:youtube.com', { enabled: false }))).toBe(false);
+    expect(t.controller.allowsRules(edit('r:youtube.com', { duringFocus: false }))).toBe(false);
+    expect(t.controller.allowsRules(edit('r:reddit.com', { pattern: 'reddit.org' }))).toBe(false);
+    expect(t.controller.allowsRules(edit('r:reddit.com', { schedule: { days: [0], from: '00:00', to: '00:01' } }))).toBe(true); // расписание добавляется к флажкам, а не заменяет их
+    expect(t.controller.allowsRules(rules.filter((r) => r.id !== 'r:youtube.com'))).toBe(false);
+    // не убирают — можно: другой период, поддомен под действующим доменом, новое правило, включение
+    expect(t.controller.allowsRules(edit('r:reddit.com', { duringShortBreak: true }))).toBe(true);
+    expect(t.controller.allowsRules(rules.filter((r) => r.id !== 'sub'))).toBe(true);
+    expect(t.controller.allowsRules([...rules, rule('twitch.tv')])).toBe(true);
+    expect(t.controller.allowsRules(edit('r:vk.com', { enabled: true }))).toBe(true);
+
+    expect(t.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, enabled: false } }, prev)).toBe(false);
+    expect(t.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, level: 'standard' } }, prev)).toBe(false);
+    expect(t.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, strictUnlockDelaySec: 0 } }, prev)).toBe(false);
+    expect(t.controller.allowsSettings({ ...prev, timer: { keepBlockingOnPause: false } }, prev)).toBe(false);
+    expect(t.controller.allowsSettings(prev, prev)).toBe(true);
+    expect(t.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, scheduledEnabled: true } }, prev)).toBe(true);
+
+    // после снятия по правилам (ожидание + фраза) запрета больше нет
+    await t.controller.requestUnlock();
+    t.tick(60_000);
+    expect((await t.controller.confirmUnlock('Я хочу отвлечься')).strictLocked).toBe(false);
+    expect(t.controller.allowsRules(rules.filter((r) => r.id !== 'r:youtube.com'))).toBe(true);
+    expect(t.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, level: 'standard' } }, prev)).toBe(true);
+  });
+
+  it('отказ Strict показывается пользователю текстом на обоих языках, а не ключом', () => {
+    for (const lang of ['ru', 'en'] as const) {
+      const text = translateDynamic(lang, STRICT_LOCKED_KEY);
+      expect(text, lang).not.toBe(STRICT_LOCKED_KEY);
+      expect(text, lang).not.toMatch(/blocker\.invalid/);
+    }
+    expect(translateDynamic('ru', STRICT_LOCKED_KEY)).not.toBe(translateDynamic('en', STRICT_LOCKED_KEY));
+  });
+
+  it('Standard и Strict вне сессии ничего не запрещают', async () => {
+    const standard = setup();
+    await standard.controller.applyFor(focus());
+    const prev = { blocker: standard.settings.blocker, timer: { keepBlockingOnPause: true } };
+    expect(standard.controller.allowsRules([])).toBe(true);
+    expect(standard.controller.allowsSettings({ ...prev, blocker: { ...prev.blocker, enabled: false } }, prev)).toBe(true);
+
+    const strictIdle = setup({ blocker: { level: 'strict' } });
+    await strictIdle.controller.applyFor(idle());
+    expect(strictIdle.controller.allowsRules([])).toBe(true);
   });
 
   it('Strict вне сессии (только расписание) не запирает', async () => {

@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from '../../shared/defaults';
 import type { AppSettings, BackupFile, SettingsSection } from '../../shared/types';
 import type { Storage } from '../db';
 import { TypedEmitter } from '../events';
-import { isPlainObject, v } from '../validate';
+import { isPlainObject, isSchemaKey, v } from '../validate';
 import { isBlockRule, isSoundPreset, isTimerPreset, SETTINGS_SCHEMA } from './schema';
 
 export class SettingsError extends Error {
@@ -29,7 +29,7 @@ function loadFromStorage(stored: Record<string, unknown>): AppSettings {
     const target = result[section] as Record<string, unknown>;
     const checks = SETTINGS_SCHEMA[section] as Record<string, (x: unknown) => boolean>;
     for (const [key, value] of Object.entries(saved)) {
-      if (key in checks && checks[key]!(value)) target[key] = clone(value);
+      if (isSchemaKey(checks, key) && checks[key]!(value)) target[key] = clone(value);
     }
   }
   return result;
@@ -43,14 +43,14 @@ function applyPatch(base: AppSettings, patch: unknown, prefix = ''): AppSettings
   if (!isPlainObject(patch)) throw new SettingsError(prefix || 'patch');
   const next = clone(base);
   for (const [section, sectionPatch] of Object.entries(patch)) {
-    if (!(section in SETTINGS_SCHEMA)) throw new SettingsError(`${prefix}${section}`);
+    if (!isSchemaKey(SETTINGS_SCHEMA, section)) throw new SettingsError(`${prefix}${section}`);
     if (sectionPatch === undefined) continue;
     if (!isPlainObject(sectionPatch)) throw new SettingsError(`${prefix}${section}`);
     const checks = SETTINGS_SCHEMA[section as SettingsSection] as Record<string, (x: unknown) => boolean>;
     const target = next[section as SettingsSection] as Record<string, unknown>;
     for (const [key, value] of Object.entries(sectionPatch)) {
       if (value === undefined) continue;
-      const check = checks[key];
+      const check = isSchemaKey(checks, key) ? checks[key] : undefined;
       if (!check || !check(value)) throw new SettingsError(`${prefix}${section}.${key}`);
       target[key] = clone(value);
     }
@@ -71,6 +71,11 @@ export class SettingsManager extends TypedEmitter<SettingsEvents> {
 
   get(): AppSettings {
     return clone(this.current);
+  }
+
+  /** Какими станут настройки после patch(partial) — без сохранения и событий. Неверное значение → SettingsError. */
+  preview(partial: unknown): AppSettings {
+    return applyPatch(this.current, partial);
   }
 
   /** Глубокое слияние + валидация. Неверное значение → SettingsError, сохранённое не меняется. */

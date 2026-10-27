@@ -25,6 +25,10 @@ export interface WidgetWindowPort {
   raise(): void;
   /** Окно сдвинули или изменили размер (мышью или программно). */
   onGeometryChange(cb: () => void): void;
+  /** Окна больше нет: renderer упал (окно уничтожено) или окно закрыто. */
+  onGone(cb: (reason: 'crashed' | 'closed') => void): void;
+  /** Пользователь закрывает окно (Alt+F4, системное меню). Вернуть true — закрытие отменено. */
+  onCloseRequest(cb: () => boolean): void;
 }
 
 /** Что виджету нужно от TimerEngine (Т02): снимок и события. */
@@ -48,6 +52,9 @@ export interface WidgetDeps {
   onClickThroughRestored?(): void;
   /** Как часто заново поднимать окно поверх остальных, мс. */
   raiseIntervalMs?: number;
+  /** Приложение завершается: окна закрываются насовсем, пересоздавать нельзя. */
+  isQuitting?(): boolean;
+  onError?(message: string, err?: unknown): void;
 }
 
 export type WidgetEvents = {
@@ -56,6 +63,9 @@ export type WidgetEvents = {
 };
 
 const SAVE_DEBOUNCE_MS = 500;
+/** Сколько раз за RECREATE_WINDOW_MS окно пересоздаётся после падения, прежде чем сдаться. */
+const MAX_RECREATES = 3;
+const RECREATE_WINDOW_MS = 60_000;
 
 const sameRect = (a: Rect | null | undefined, b: Rect | null | undefined) =>
   !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
@@ -76,6 +86,8 @@ export class WidgetManager extends TypedEmitter<WidgetEvents> {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private raiseTimer: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Unsubscribe[] = [];
+  /** Когда окно пересоздавалось после падения (защита от бесконечного цикла). */
+  private recreatedAt: number[] = [];
 
   constructor(private readonly deps: WidgetDeps) {
     super();
@@ -261,7 +273,39 @@ export class WidgetManager extends TypedEmitter<WidgetEvents> {
     win.setClickThrough(s.clickThrough);
     this.applyBounds(bounds);
     win.onGeometryChange(() => this.onWindowGeometry());
+    win.onGone((reason) => this.onWindowGone(win, reason));
+    win.onCloseRequest(() => this.onWindowCloseRequest());
     return win;
+  }
+
+  /** Закрытие пользователем — то же, что «Скрыть»; при выходе из приложения окно закрывается. */
+  private onWindowCloseRequest(): boolean {
+    if (this.deps.isQuitting?.()) return false;
+    this.hide();
+    return true;
+  }
+
+  /** Окно умерло (падение renderer или закрытие): забыть его и, если виджет должен быть виден, создать заново (§12.2). */
+  private onWindowGone(win: WidgetWindowPort, reason: 'crashed' | 'closed'): void {
+    if (this.win !== win) return;
+    this.win = null;
+    this.lastApplied = null;
+    const restore = this.visible && !this.deps.isQuitting?.();
+    if (!restore) {
+      this.setVisible(false);
+      return;
+    }
+    const now = Date.now();
+    this.recreatedAt = this.recreatedAt.filter((t) => now - t < RECREATE_WINDOW_MS);
+    if (this.recreatedAt.length >= MAX_RECREATES) {
+      this.deps.onError?.(`widget window is gone (${reason}) too often; not recreating until shown again`);
+      this.setVisible(false);
+      return;
+    }
+    this.recreatedAt.push(now);
+    this.deps.onError?.(`widget window is gone (${reason}); recreating`);
+    this.reveal();
+    if (!this.win) this.setVisible(false);
   }
 
   private applyBounds(bounds: Rect): void {

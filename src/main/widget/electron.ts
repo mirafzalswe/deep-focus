@@ -58,6 +58,20 @@ export function createWidgetWindow(
     hooks.onSystemMenu();
   });
 
+  // Падение renderer: окно с мёртвой страницей уничтожается, WidgetManager создаёт новое (по 'closed' ниже)
+  let crashed = false;
+  win.webContents.on('render-process-gone', () => {
+    crashed = true;
+    if (!win.isDestroyed()) win.destroy();
+  });
+  let closeRequest: (() => boolean) | null = null;
+  // Закрытие пользователем (Alt+F4): решает WidgetManager — обычно это «Скрыть», при выходе — закрыть
+  win.on('close', (event) => {
+    if (closeRequest?.()) event.preventDefault();
+  });
+  let gone: ((reason: 'crashed' | 'closed') => void) | null = null;
+  win.on('closed', () => gone?.(crashed ? 'crashed' : 'closed'));
+
   // Показ до окончания загрузки откладывается до ready-to-show (без белой вспышки), скрытие его отменяет
   let wantVisible = false;
   let loaded = false;
@@ -80,9 +94,15 @@ export function createWidgetWindow(
     },
     isVisible: () => !win.isDestroyed() && win.isVisible(),
     getBounds: () => win.getBounds(),
-    setBounds: (r) => win.setBounds(r),
-    setMinimumSize: (w, h) => win.setMinimumSize(w, h),
-    setOpacity: (o) => win.setOpacity(o),
+    setBounds: (r) => {
+      if (!win.isDestroyed()) win.setBounds(r);
+    },
+    setMinimumSize: (w, h) => {
+      if (!win.isDestroyed()) win.setMinimumSize(w, h);
+    },
+    setOpacity: (o) => {
+      if (!win.isDestroyed()) win.setOpacity(o);
+    },
     setAlwaysOnTop: (on) => {
       wantTopmost = on;
       applyTopmost();
@@ -101,6 +121,12 @@ export function createWidgetWindow(
     onGeometryChange: (cb) => {
       win.on('move', cb);
       win.on('resize', cb);
+    },
+    onGone: (cb) => {
+      gone = cb;
+    },
+    onCloseRequest: (cb) => {
+      closeRequest = cb;
     },
   };
   return { port, window: win };

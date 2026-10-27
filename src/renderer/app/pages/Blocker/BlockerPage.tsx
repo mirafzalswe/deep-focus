@@ -21,7 +21,12 @@ export default function BlockerPage(_props: PageProps) {
       <div className="grid gap-5 xl:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-5">
           <StatusCard status={status} onEnable={enable} />
-          <RulesCard rules={rules} activeRuleIds={status?.activeRuleIds ?? []} reload={reload} />
+          <RulesCard
+            rules={rules}
+            activeRuleIds={status?.activeRuleIds ?? []}
+            strictLocked={status?.strictLocked ?? false}
+            reload={reload}
+          />
         </div>
         <div>
           <Card title={t('blocker.limits.title')}>

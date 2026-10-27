@@ -4,6 +4,8 @@
 //  • сбой приложения с включённой блокировкой → DeepFocus --cleanup возвращает исходное;
 //  • правила в интерфейсе: путь → предупреждение, системные/локальные адреса → отказ; реестр не тронут.
 // Каждый тест в finally возвращает исходные значения прокси, если они отличаются, и проверяет это.
+// Тесты, которые включают блокировку (меняют настоящий прокси пользователя), идут только явно:
+//   DF_REAL_REGISTRY=1 npm run e2e   — как SystemProxy.registry.test.ts.
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { request } from 'node:http';
@@ -105,7 +107,12 @@ async function startFocus(page: Page): Promise<void> {
 
 test.describe.configure({ mode: 'serial' });
 
+/** Меняет настоящие настройки прокси HKCU — только с явного разрешения. */
+const REAL_REGISTRY = process.platform === 'win32' && process.env.DF_REAL_REGISTRY === '1';
+const REAL_REGISTRY_SKIP = 'меняет настоящий прокси HKCU — запуск только с DF_REAL_REGISTRY=1';
+
 test('согласие → Focus: системный прокси ведёт youtube.com на заглушку; конец сессии → настройки ровно исходные', async () => {
+  test.skip(!REAL_REGISTRY, REAL_REGISTRY_SKIP);
   test.setTimeout(180_000);
   const original = readProxy();
   const userData = tempUserData();
@@ -172,6 +179,7 @@ test('согласие → Focus: системный прокси ведёт you
 });
 
 test('сбой с включённой блокировкой → DeepFocus --cleanup возвращает исходные настройки и выходит', async () => {
+  test.skip(!REAL_REGISTRY, REAL_REGISTRY_SKIP);
   test.setTimeout(180_000);
   const original = readProxy();
   const userData = tempUserData();
@@ -265,6 +273,27 @@ test('правила в интерфейсе: путь → предупрежд�
   } finally {
     await app?.close().catch(() => undefined);
     forceRestore(original);
+    expect(readProxy()).toEqual(original);
+    removeUserData(userData);
+  }
+});
+
+test('выключение Windows (session-end): блокировщик синхронно проверяет реестр и не трогает то, что не его', async () => {
+  const original = readProxy();
+  const userData = tempUserData();
+  let app: ElectronApplication | null = null;
+  try {
+    ({ app } = await launchApp(userData));
+    // Windows шлёт WM_ENDSESSION каждому окну; Electron превращает его в session-end
+    await app.evaluate(({ BrowserWindow }) => {
+      for (const w of BrowserWindow.getAllWindows()) w.emit('session-end', { preventDefault() {} });
+    });
+    const log = () => readFileSync(join(userData, 'logs', 'deepfocus.log'), 'utf8');
+    await expect.poll(log).toContain('session end: nothing of ours in proxy settings');
+    expect(log().match(/session end:/g)).toHaveLength(1);
+    expect(readProxy()).toEqual(original);
+  } finally {
+    await app?.close().catch(() => undefined);
     expect(readProxy()).toEqual(original);
     removeUserData(userData);
   }

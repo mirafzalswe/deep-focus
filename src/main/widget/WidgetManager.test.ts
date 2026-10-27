@@ -54,6 +54,27 @@ class FakeWindow implements WidgetWindowPort {
     this.bounds = { ...this.bounds, x, y };
     this.geometryListener?.();
   }
+  // окно умирает: renderer упал (Electron уничтожает окно) или окно закрыли
+  gone = false;
+  private goneListener: ((reason: 'crashed' | 'closed') => void) | null = null;
+  private closeListener: (() => boolean) | null = null;
+  onGone(cb: (reason: 'crashed' | 'closed') => void) {
+    this.goneListener = cb;
+  }
+  onCloseRequest(cb: () => boolean) {
+    this.closeListener = cb;
+  }
+  die(reason: 'crashed' | 'closed') {
+    this.gone = true;
+    this.visible = false;
+    this.goneListener?.(reason);
+  }
+  /** Пользователь закрыл окно (Alt+F4). Не отменили — окно закрывается. */
+  userClose() {
+    const prevented = this.closeListener?.() ?? false;
+    if (!prevented) this.die('closed');
+    return prevented;
+  }
 }
 
 class FakeScreen {
@@ -110,11 +131,14 @@ let settings: SettingsManager;
 let screen: FakeScreen;
 let windows: FakeWindow[];
 
+let quitting = false;
+
 function makeManager(timer?: TimerFeed) {
   const manager = new WidgetManager({
     settings,
     screen,
     timer,
+    isQuitting: () => quitting,
     createWindow: (init) => {
       const w = new FakeWindow(init);
       windows.push(w);
@@ -134,6 +158,7 @@ beforeEach(() => {
   settings = new SettingsManager(storage);
   screen = new FakeScreen();
   windows = [];
+  quitting = false;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -270,5 +295,76 @@ describe('WidgetManager', () => {
     patchWidget({ showOnSessionStart: false, anchor: 'free', bounds: { x: 5000, y: 5000, width: 224, height: 96, displayId: 7 } });
     makeManager();
     expect(win().bounds).toEqual({ x: 1920 - 224, y: 1040 - 96, width: 224, height: 96 });
+  });
+
+  it('renderer виджета упал → окно пересоздаётся с текущими настройками, виджет остаётся видимым (§12.2)', () => {
+    const timer = fakeTimer(running);
+    const m = makeManager(timer.feed);
+    patchWidget({ opacity: 0.6, clickThrough: true });
+    expect(windows).toHaveLength(1);
+    windows[0]!.die('crashed');
+    expect(windows).toHaveLength(2);
+    const fresh = windows[1]!;
+    expect(fresh.visible).toBe(true);
+    expect(fresh.opacity).toBe(0.6);
+    expect(fresh.clickThrough).toBe(true);
+    expect(fresh.alwaysOnTop).toBe(true);
+    expect(m.isVisible()).toBe(true);
+    // новое окно управляется как прежнее
+    m.hide();
+    expect(fresh.visible).toBe(false);
+    expect(timer.touched).toEqual([]);
+  });
+
+  it('окно закрылось, пока виджет скрыт → не пересоздаётся; isVisible() не врёт; show() создаёт новое окно', () => {
+    const m = makeManager(fakeTimer(running).feed);
+    m.hide();
+    windows[0]!.die('closed');
+    expect(windows).toHaveLength(1);
+    expect(m.isVisible()).toBe(false);
+    m.show();
+    expect(windows).toHaveLength(2);
+    expect(windows[1]!.visible).toBe(true);
+    expect(m.isVisible()).toBe(true);
+  });
+
+  it('окно видимого виджета закрыто не пользователем (уничтожено) → пересоздаётся', () => {
+    const m = makeManager(fakeTimer(running).feed);
+    windows[0]!.die('closed');
+    expect(windows).toHaveLength(2);
+    expect(windows[1]!.visible).toBe(true);
+    expect(m.isVisible()).toBe(true);
+  });
+
+  it('пользователь закрыл окно виджета (Alt+F4) — это hide(): окно цело, скрыто, hidden сохранён', () => {
+    const m = makeManager(fakeTimer(running).feed);
+    expect(windows[0]!.userClose()).toBe(true);
+    expect(windows[0]!.gone).toBe(false);
+    expect(windows[0]!.visible).toBe(false);
+    expect(m.isVisible()).toBe(false);
+    expect(settings.get().widget.hidden).toBe(true);
+    m.show();
+    expect(windows).toHaveLength(1);
+    expect(windows[0]!.visible).toBe(true);
+  });
+
+  it('во время выхода окно закрывается без отмены и не пересоздаётся', () => {
+    const m = makeManager(fakeTimer(running).feed);
+    quitting = true;
+    expect(windows[0]!.userClose()).toBe(false);
+    expect(windows).toHaveLength(1);
+    expect(m.isVisible()).toBe(false);
+    expect(settings.get().widget.hidden).toBe(false);
+  });
+
+  it('renderer падает раз за разом — после нескольких попыток окно больше не пересоздаётся', () => {
+    const m = makeManager(fakeTimer(running).feed);
+    for (let i = 0; i < 10; i++) windows.at(-1)!.die('crashed');
+    expect(windows.length).toBeLessThanOrEqual(4);
+    expect(m.isVisible()).toBe(false);
+    // через минуту — снова можно
+    vi.advanceTimersByTime(60_000);
+    m.show();
+    expect(windows.at(-1)!.visible).toBe(true);
   });
 });

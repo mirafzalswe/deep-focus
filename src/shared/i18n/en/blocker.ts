@@ -39,6 +39,8 @@ export const blocker: Messages['blocker'] = {
     duplicate: 'This domain is already in the list',
     builtinDelete: 'A built-in rule cannot be deleted — turn it off instead',
     builtinPattern: 'The domain of a built-in rule cannot be changed',
+    strictLocked:
+      'In strict mode this change would lift blocking during the session. Wait for the session to end or unlock with the phrase.',
   },
   warn: {
     pathIgnored: 'The address contains a path — the whole domain {domain} with all subdomains will be blocked.',

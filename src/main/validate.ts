@@ -6,6 +6,12 @@ export type Check = (v: unknown) => boolean;
 export const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
 
+/** Имена, через которые JSON-объект может добраться до прототипов. */
+const UNSAFE_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** key — собственное поле схемы shape (не унаследованное и не __proto__/constructor/prototype). */
+export const isSchemaKey = (shape: object, key: string): boolean => !UNSAFE_KEYS.has(key) && Object.hasOwn(shape, key);
+
 export const v = {
   any: (): Check => () => true,
   bool: (): Check => (x) => typeof x === 'boolean',
@@ -43,7 +49,9 @@ export const v = {
   object:
     (shape: Record<string, Check>): Check =>
     (x) =>
-      isPlainObject(x) && Object.keys(x).every((k) => k in shape) && Object.entries(shape).every(([k, c]) => c(x[k])),
+      isPlainObject(x) &&
+      Object.keys(x).every((k) => isSchemaKey(shape, k)) &&
+      Object.entries(shape).every(([k, c]) => c(Object.hasOwn(x, k) ? x[k] : undefined)),
 };
 
 /** Ошибка валидации аргумента IPC. */

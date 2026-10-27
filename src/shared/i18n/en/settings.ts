@@ -59,4 +59,5 @@ export const settings: Messages['settings'] = {
   goalShowStreak: 'Show day streak',
   invalidValue: 'Invalid value: {field}',
   dbRecovered: 'The database file was damaged. It was kept as {file} and a new database was created.',
+  dbUnavailable: 'The database could not be opened — changes will not be saved after you quit.\nDatabase: {path}\nLog: {log}',
 };

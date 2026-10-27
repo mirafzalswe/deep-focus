@@ -5,7 +5,7 @@ import { en } from '../../shared/i18n/en';
 import { ru } from '../../shared/i18n/ru';
 import { IPC } from '../../shared/ipc';
 import type { AppSettings, DeleteDataResult, FileActionResult } from '../../shared/types';
-import { SNAPSHOT_KEY } from '../blocker';
+import { SNAPSHOT_KEY, STRICT_LOCKED_KEY, StrictLockedError } from '../blocker';
 import type { MainContext } from '../context';
 import { handle } from '../ipc';
 import { isPlainObject, v } from '../validate';
@@ -28,7 +28,12 @@ export function registerSettings(ctx: MainContext): void {
   });
 
   handle<[]>(IPC.settings.get, [], () => settings.get());
-  handle<[unknown]>(IPC.settings.patch, [isPlainObject], (patch) => settings.patch(patch));
+  // Strict во время сессии: настройки, снимающие блокировку, отклоняются (§4.7)
+  handle<[unknown]>(IPC.settings.patch, [isPlainObject], (patch) => {
+    const blocker = ctx.services.blocker;
+    if (blocker && !blocker.allowsSettings(settings.preview(patch), settings.get())) throw new StrictLockedError();
+    return settings.patch(patch);
+  });
 
   handle<[]>(IPC.settings.exportBackup, [], async (): Promise<FileActionResult> => {
     const win = BrowserWindow.getFocusedWindow() ?? ctx.mainWindow();
@@ -49,6 +54,8 @@ export function registerSettings(ctx: MainContext): void {
   });
 
   handle<[]>(IPC.settings.importBackup, [], async (): Promise<FileActionResult> => {
+    // копия заменяет правила и настройки блокировки — в Strict во время сессии это обход ожидания и фразы
+    if (ctx.services.blocker?.status().strictLocked) return { ok: false, errorKey: STRICT_LOCKED_KEY };
     const win = BrowserWindow.getFocusedWindow() ?? ctx.mainWindow();
     const options = {
       properties: ['openFile' as const],

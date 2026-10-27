@@ -1,7 +1,7 @@
 // Точка входа main: single-instance, журнал, база, настройки, главное окно, регистрация модулей,
 // жизненный цикл (Т07): окно закрывается в трей, запуск свёрнутым (--hidden), выход — через Lifecycle.
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, session } from 'electron';
+import { app, BrowserWindow, dialog, session, type MessageBoxOptions } from 'electron';
 import { translate } from '../shared/i18n';
 import type { ModuleStatus } from '../shared/types';
 import { registerAnalytics } from './analytics';
@@ -11,7 +11,7 @@ import { CLEANUP_ARG, registerBlocker } from './blocker';
 import type { MainContext } from './context';
 import { openStorage, openStorageSafe, type Storage } from './db';
 import { registerHotkeys } from './hotkeys';
-import { setTrustedOrigins } from './ipc';
+import { setTrustedSender } from './ipc';
 import { createLogger } from './logger';
 import { initModules, type ModuleDef } from './modules';
 import { APP_USER_MODEL_ID, registerNotify } from './notify';
@@ -21,7 +21,7 @@ import { registerTimer } from './timer';
 import { registerTray } from './tray';
 import { registerUpdater } from './updater';
 import { registerWidget } from './widget';
-import { devServerUrl } from './windows';
+import { devServerUrl, isAppPageUrl } from './windows';
 
 const isDev = !app.isPackaged;
 
@@ -81,19 +81,19 @@ function lockDownSession(): void {
   });
 }
 
-function openDatabase(dbPath: string): { storage: Storage; corruptBackupPath: string | null } {
+function openDatabase(dbPath: string): { storage: Storage; corruptBackupPath: string | null; error: string | null } {
   try {
-    return openStorageSafe(dbPath);
+    return { ...openStorageSafe(dbPath), error: null };
   } catch (err) {
-    // База недоступна (заблокирована, нет прав) — работаем в памяти, чтобы приложение не падало.
-    logger.error('storage', 'cannot open database, falling back to in-memory storage', err);
-    return { storage: openStorage(':memory:'), corruptBackupPath: null };
+    // База недоступна (заблокирована, нет прав) — работаем в памяти, чтобы приложение не падало,
+    // но не молча: статус storage = error и диалог пользователю (§12.3).
+    logger.error('storage', `cannot open database ${dbPath}, falling back to in-memory storage: data will not be saved`, err);
+    return { storage: openStorage(':memory:'), corruptBackupPath: null, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
 async function bootstrap(): Promise<void> {
-  const dev = devServerUrl();
-  setTrustedOrigins(dev ? [dev, 'file://'] : ['file://']);
+  setTrustedSender(isAppPageUrl);
   lockDownSession();
 
   const dbPath = join(userData, 'deepfocus.db');
@@ -103,7 +103,7 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     logger.error('storage', 'delete all data failed', err);
   }
-  const { storage, corruptBackupPath } = openDatabase(dbPath);
+  const { storage, corruptBackupPath, error: storageError } = openDatabase(dbPath);
   if (corruptBackupPath) logger.error('storage', `database was corrupt, moved to ${corruptBackupPath}`);
 
   let statuses: ModuleStatus[] = [];
@@ -131,21 +131,27 @@ async function bootstrap(): Promise<void> {
       }
     },
     t: (key, params) => translate(settings.get().general.language, key, params),
-    moduleStatuses: () => [{ name: 'storage', state: 'ok', error: null }, ...statuses],
+    moduleStatuses: () => [{ name: 'storage', state: storageError ? 'error' : 'ok', error: storageError }, ...statuses],
   });
 
   statuses = await initModules(MODULES, ctx, logger);
   // Автозапуск с Windows (--hidden) стартует в трей; без трея окно показывается всегда.
   if (!(process.argv.includes(HIDDEN_ARG) && ctx.services.tray)) showMainWindow();
 
-  if (corruptBackupPath) {
+  const warn = (options: MessageBoxOptions) => {
     const win = ctx.mainWindow();
-    const options = {
-      type: 'warning' as const,
-      message: ctx.t('common.appName'),
-      detail: ctx.t('settings.dbRecovered', { file: corruptBackupPath }),
-    };
     void (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+  };
+  if (corruptBackupPath) {
+    warn({ type: 'warning', message: ctx.t('common.appName'), detail: ctx.t('settings.dbRecovered', { file: corruptBackupPath }) });
+  }
+  if (storageError) {
+    // База не открылась: всё живёт в памяти и пропадёт при выходе — где база и где подробности
+    warn({
+      type: 'error',
+      title: ctx.t('common.appName'),
+      message: ctx.t('settings.dbUnavailable', { path: dbPath, log: logger.path }),
+    });
   }
 
   logger.info('main', `started ${app.getVersion()}; modules: ${statuses.map((s) => `${s.name}=${s.state}`).join(', ')}`);
