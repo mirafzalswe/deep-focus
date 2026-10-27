@@ -54,6 +54,24 @@ export interface TimerEngineDeps {
   onError?: (message: string, err: unknown) => void;
 }
 
+/** Куда команда переведёт идущую сессию: вид интервала (null — сессии не будет) и статус. */
+export interface TimerChange {
+  type: TimerCommand['type'];
+  kind: IntervalKind | null;
+  status: TimerStatus;
+}
+
+/** Проверка команды над идущей сессией (Strict, §4.7): i18n-ключ причины отказа или null — можно. */
+export type TimerGuard = (change: TimerChange) => string | null;
+
+/** Команда отклонена проверкой (setGuard). message — i18n-ключ причины. */
+export class TimerLockedError extends Error {
+  constructor(public readonly reasonKey: string) {
+    super(reasonKey);
+    this.name = 'TimerLockedError';
+  }
+}
+
 export type TimerEvents = {
   /** Раз в секунду, пока интервал идёт. */
   tick: (snap: TimerSnapshot) => void;
@@ -152,6 +170,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   private lastPersistAt = 0;
   private pending: Array<() => void> = [];
   private readonly newId: () => string;
+  private guard: TimerGuard | null = null;
 
   constructor(private readonly deps: TimerEngineDeps) {
     super();
@@ -185,6 +204,14 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
     }
   }
 
+  /**
+   * Проверка команд, которые меняют идущую сессию (pause, stop, reset, skipSession, skipBreak, restartSession,
+   * switchKind). Отказ — TimerLockedError, состояние не меняется. Конец интервала по времени не проверяется.
+   */
+  setGuard(guard: TimerGuard | null): void {
+    this.guard = guard;
+  }
+
   start(opts: Omit<Extract<TimerCommand, { type: 'start' }>, 'type'>): TimerSnapshot {
     const s = this.state;
     // Защита от двойного запуска: идущий или приостановленный интервал не заменяется.
@@ -210,6 +237,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
 
   pause(): TimerSnapshot {
     if (this.state.status !== 'running') return this.snapshot();
+    this.check('pause', this.state.kind, 'paused');
     return this.transition((now) => {
       this.closeSuspension(now);
       this.active().pausedAt = now;
@@ -233,6 +261,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   stop(): TimerSnapshot {
     const s = this.state;
     if (s.status === 'idle') return this.snapshot();
+    this.check('stop', null, 'idle');
     return this.transition((now) => {
       if (s.active) this.finish(now, 'stopped');
       this.toIdle({ kind: 'focus', keepCycle: false });
@@ -242,6 +271,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   reset(): TimerSnapshot {
     const s = this.state;
     if (s.status !== 'running' && s.status !== 'paused') return this.snapshot();
+    this.check('reset', null, 'idle');
     return this.transition((now) => {
       const { activeMs } = this.measure(this.active(), now);
       if (activeMs >= RESET_RECORD_MIN_MS) this.finish(now, 'reset');
@@ -255,6 +285,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
     if ((s.status !== 'running' && s.status !== 'paused') || s.kind !== 'focus' || s.mode !== 'pomodoro') {
       return this.snapshot();
     }
+    this.check('skipSession', this.breakKind(s.completedFocusInCycle), 'running');
     return this.transition((now) => {
       this.finish(now, 'skipped');
       s.override = null;
@@ -267,6 +298,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
     const inBreak = s.kind !== 'focus';
     const allowed = inBreak && (s.status === 'running' || s.status === 'paused' || s.status === 'awaiting');
     if (!allowed) return this.snapshot();
+    this.check('skipBreak', 'focus', 'running');
     return this.transition((now) => {
       if (s.active) this.finish(now, 'skipped');
       if (s.kind === 'longBreak') s.completedFocusInCycle = 0;
@@ -278,6 +310,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   restartSession(): TimerSnapshot {
     const s = this.state;
     if (s.status !== 'running' && s.status !== 'paused') return this.snapshot();
+    this.check('restartSession', s.kind, 'running');
     return this.transition((now) => {
       this.finish(now, 'restarted');
       this.begin(s.kind, now);
@@ -287,6 +320,7 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   switchKind(kind: IntervalKind): TimerSnapshot {
     const s = this.state;
     if (kind === s.kind && s.status !== 'awaiting') return this.snapshot();
+    this.check('switchKind', kind, 'running');
     return this.transition((now) => {
       if (kind !== s.kind) s.override = null;
       if (kind !== 'focus') s.mode = 'pomodoro';
@@ -432,6 +466,14 @@ export class TimerEngine extends TypedEmitter<TimerEvents> {
   }
 
   // ── Внутреннее ──────────────────────────────────────────────────────────
+  /** Команда над идущей сессией (running/paused) — спросить setGuard; вне сессии проверять нечего. */
+  private check(type: TimerCommand['type'], kind: IntervalKind | null, status: TimerStatus): void {
+    const s = this.state;
+    if (!this.guard || (s.status !== 'running' && s.status !== 'paused')) return;
+    const reasonKey = this.guard({ type, kind, status });
+    if (reasonKey) throw new TimerLockedError(reasonKey);
+  }
+
   private tick(): void {
     const now = this.deps.clock.now();
     const s = this.state;

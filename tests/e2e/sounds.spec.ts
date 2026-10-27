@@ -1,9 +1,10 @@
 // E2E звуков (§5): библиотека и пометки файлов, микшер в скрытом окне audio, затухание, пресеты,
 // свои звуки, реакция на сессию, пересоздание упавшего окна audio. Файлы звуков — сгенерированные WAV.
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launchApp, removeUserData, tempUserData } from './helpers';
+import { launchApp, launchMain, removeUserData, tempUserData } from './helpers';
 
 interface EngineState {
   context: string;
@@ -116,13 +117,13 @@ test('Sounds: пометки файлов, микс генератора и фа
     const lib = await page.evaluate(() => window.deepFocus.audio.library());
     expect(lib.find((s) => s.id === 'rain')!.available).toBe(true);
 
-    // Остановка — затухание 1 с: на середине мастер ещё слышен, после — тишина и источники остановлены
+    // Остановка — затухание 1 с: на середине мастер ещё слышен и статус «играет», после — тишина и источники остановлены
     await page.click('[data-audio-action="stop"]');
-    await expect(page.locator('[data-audio-playing]')).toHaveAttribute('data-audio-playing', 'false');
     await page.waitForTimeout(400);
     const mid = (await engine(app))!;
     expect(mid.master).toBeGreaterThan(0.02);
     expect(mid.master).toBeLessThan(0.4);
+    await expect(page.locator('[data-audio-playing]')).toHaveAttribute('data-audio-playing', 'false');
     await expect.poll(async () => (await engine(app))!.tracks.length, { timeout: 5000 }).toBe(0);
     expect((await engine(app))!.master).toBe(0);
     await app.close();
@@ -260,6 +261,140 @@ test('Сессия включает рабочий профиль, переры�
     await expect.poll(async () => (await engine(app))!.tracks.length, { timeout: 5000 }).toBe(0);
     await app.close();
   } finally {
+    removeUserData(userData);
+  }
+});
+
+/**
+ * Мастер-gain во времени: окно audio опрашивает себя каждые 50 мс, пока main-окно выполняет действие.
+ * Время — от момента, когда мастер впервые пошёл вниз (начало затухания); значения — доля от исходного.
+ */
+async function fadeCurve(app: ElectronApplication, act: () => Promise<unknown>, totalMs = 2600): Promise<{ t: number; master: number }[]> {
+  const audioPage = app.windows().find(isAudioPage)!;
+  const sampling = audioPage.evaluate(async (total) => {
+    const read = () => (window as unknown as { __dfAudio: () => { master: number } }).__dfAudio().master;
+    const out: { t: number; master: number }[] = [];
+    const t0 = performance.now();
+    while (performance.now() - t0 < total) {
+      out.push({ t: performance.now() - t0, master: read() });
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return out;
+  }, totalMs);
+  await new Promise((r) => setTimeout(r, 200));
+  await act();
+  const samples = await sampling;
+  const start = samples[0]!.master;
+  const from = samples.findIndex((x) => x.master < start * 0.99);
+  expect(from).toBeGreaterThan(0);
+  const t0 = samples[from - 1]!.t;
+  return samples.slice(from - 1).map((x) => ({ t: x.t - t0, master: x.master / start }));
+}
+
+/** Линейное затухание за fadeMs: монотонно, не обрывается раньше времени, к концу — тишина. Допуск ±150 мс на опрос. */
+function expectLinearFade(curve: { t: number; master: number }[], fadeMs: number): void {
+  for (let i = 1; i < curve.length; i++) expect(curve[i]!.master).toBeLessThanOrEqual(curve[i - 1]!.master + 1e-6);
+  const at = (ms: number) => curve.find((x) => x.t >= ms)!.master;
+  expect(at(fadeMs * 0.25)).toBeGreaterThan(1 - (fadeMs * 0.25 + 150) / fadeMs);
+  expect(at(fadeMs * 0.5)).toBeGreaterThan(1 - (fadeMs * 0.5 + 150) / fadeMs);
+  expect(at(fadeMs * 0.5)).toBeLessThan(1 - (fadeMs * 0.5 - 150) / fadeMs);
+  expect(at(fadeMs * 0.8)).toBeGreaterThan(0.02);
+  expect(at(fadeMs + 200)).toBe(0);
+}
+
+test('затухание при остановке: мастер-gain гаснет линейно за fadeOutMs, индикатор «играет» держится до конца', async () => {
+  const userData = tempUserData();
+  try {
+    const { app, page } = await launchApp(userData);
+    await page.evaluate(() =>
+      window.deepFocus.settings.patch({
+        sound: { fadeOutMs: 1500, autoStartOnSession: true, workPresetId: 'brown-noise' },
+        widget: { showOnSessionStart: false },
+      }),
+    );
+    const homeSound = page.locator('[data-home-sound]');
+
+    // 1) кнопка звука на главной
+    await page.click('[data-home-sound-toggle]');
+    await expect.poll(() => loaded(app), { timeout: 15_000 }).toEqual(['brown-noise']);
+    await expect.poll(async () => (await engine(app))!.master).toBeCloseTo(0.8 * 0.8, 2);
+    let indicatorMidFade: string | null = null;
+    let curve = await fadeCurve(app, async () => {
+      await page.click('[data-home-sound-toggle]');
+      await page.waitForTimeout(750);
+      indicatorMidFade = await homeSound.getAttribute('data-audio-playing');
+    });
+    expectLinearFade(curve, 1500);
+    expect(indicatorMidFade).toBe('true');
+    await expect(homeSound).toHaveAttribute('data-audio-playing', 'false');
+
+    // 2) звук сессии гаснет по «Стоп» таймера; правка настроек посреди затухания его не обрывает
+    await page.evaluate(() => window.deepFocus.timer.command({ type: 'start', mode: 'pomodoro' }));
+    await expect.poll(() => loaded(app), { timeout: 15_000 }).toEqual(['brown-noise']);
+    await expect.poll(async () => (await engine(app))!.master).toBeCloseTo(0.8 * 0.8, 2);
+    curve = await fadeCurve(app, async () => {
+      await page.evaluate(() => window.deepFocus.timer.command({ type: 'stop' }));
+      await page.waitForTimeout(300);
+      await page.evaluate(() => window.deepFocus.settings.patch({ sound: { lowerFactor: 0.4 } }));
+    });
+    expectLinearFade(curve, 1500);
+    await expect.poll(() => audioStatus(page)).toMatchObject({ playing: false });
+    await app.close();
+  } finally {
+    removeUserData(userData);
+  }
+});
+
+test('перезапуск посреди сессии возвращает её звук: выход с «продолжить» и аварийное завершение', async () => {
+  const userData = tempUserData();
+  let app: ElectronApplication | undefined;
+  try {
+    let page: Page;
+    ({ app, page } = await launchMain(userData));
+    await page.evaluate(() =>
+      window.deepFocus.settings.patch({
+        sound: { autoStartOnSession: true, workPresetId: 'brown-noise' },
+        widget: { showOnSessionStart: false },
+        general: { quitBehavior: 'keep' },
+      }),
+    );
+    await page.evaluate(() => window.deepFocus.timer.command({ type: 'start', mode: 'pomodoro' }));
+    await expect.poll(() => loaded(app!), { timeout: 15_000 }).toEqual(['brown-noise']);
+
+    // выход «продолжить при следующем запуске»
+    let exited = new Promise<void>((r) => app!.process().once('exit', () => r()));
+    void page.evaluate(() => window.deepFocus.app.quit()).catch(() => undefined);
+    await exited;
+    ({ app, page } = await launchMain(userData));
+    expect(await page.evaluate(() => window.deepFocus.timer.snapshot())).toMatchObject({ status: 'running', kind: 'focus', recovered: true });
+    await expect.poll(() => audioStatus(page)).toMatchObject({ playing: true, presetId: 'brown-noise' });
+    await expect.poll(() => loaded(app!), { timeout: 15_000 }).toEqual(['brown-noise']);
+    await expect.poll(async () => (await engine(app!))!.master).toBeCloseTo(0.8 * 0.8, 2);
+
+    // аварийное завершение: всё дерево процессов приложения убито без выхода
+    exited = new Promise<void>((r) => app!.process().once('exit', () => r()));
+    execFileSync('taskkill', ['/PID', String(app.process().pid), '/T', '/F'], { stdio: 'ignore' });
+    await exited;
+    // блокировку единственного экземпляра Windows отпускает не сразу — повторяем запуск
+    for (let attempt = 1; ; attempt++) {
+      try {
+        ({ app, page } = await launchMain(userData));
+        break;
+      } catch (err) {
+        if (attempt >= 5) throw err;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    expect(await page.evaluate(() => window.deepFocus.timer.snapshot())).toMatchObject({ status: 'running', recovered: true });
+    await expect.poll(() => audioStatus(page)).toMatchObject({ playing: true, presetId: 'brown-noise' });
+    await expect.poll(() => loaded(app!), { timeout: 15_000 }).toEqual(['brown-noise']);
+
+    // стоп восстановленной сессии гасит её звук
+    await page.evaluate(() => window.deepFocus.timer.command({ type: 'stop' }));
+    await expect.poll(() => audioStatus(page), { timeout: 5000 }).toMatchObject({ playing: false });
+    await app.close();
+  } finally {
+    await app?.close().catch(() => undefined);
     removeUserData(userData);
   }
 });

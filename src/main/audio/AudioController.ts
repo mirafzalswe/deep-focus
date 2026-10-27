@@ -23,6 +23,7 @@ export interface EnginePort {
 
 export interface TimerEventsSource {
   on(event: 'sessionStarted' | 'state', listener: (snap: TimerSnapshot) => void): Unsubscribe;
+  snapshot(): TimerSnapshot;
 }
 
 export interface AudioControllerDeps {
@@ -62,6 +63,9 @@ export class AudioController extends TypedEmitter<AudioEvents> {
   private readonly probes = new Map<number, (results: ProbeResults | null) => void>();
   private nextProbeId = 1;
   private verifying: Promise<void> | null = null;
+  /** Идёт затухание после остановки: статус «играет» держится, пока звук ещё слышен (§5.6). */
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private fadeEndsAt = 0;
 
   constructor(private readonly deps: AudioControllerDeps) {
     super();
@@ -78,8 +82,10 @@ export class AudioController extends TypedEmitter<AudioEvents> {
     return this.push();
   }
 
-  /** Остановка; по умолчанию — затуханием fadeOutMs. */
+  /** Остановка; по умолчанию — затуханием fadeOutMs. Повторная остановка во время затухания его не перезапускает. */
   stop(opts: { fade?: boolean } = {}): AudioStatus {
+    if (opts.fade !== false && !this.mix.playing && this.fadeTimer) return this.status();
+    if (opts.fade === false) this.trackFade(0); // сразу, даже посреди затухания
     this.mix.playing = false;
     this.resetSessionEffects();
     return this.push(opts.fade === false ? 0 : this.deps.settings.get().fadeOutMs);
@@ -169,9 +175,33 @@ export class AudioController extends TypedEmitter<AudioEvents> {
     this.push();
   }
 
-  /** Подписка на TimerEngine: sessionStarted (Focus / перерыв) и state (остановка сессии). */
+  /**
+   * Сессия восстановлена после перезапуска или сбоя (§2.14): её звук возвращается по тем же правилам,
+   * что при старте интервала (§5.9) — Focus включает рабочий профиль, перерыв ведёт себя по breakBehavior.
+   */
+  private resumeSession(snap: TimerSnapshot): void {
+    if (!snap.recovered || (snap.status !== 'running' && snap.status !== 'paused')) return;
+    if (snap.kind === 'focus') {
+      this.applyFocusBehavior();
+      return;
+    }
+    const s = this.deps.settings.get();
+    const work = s.autoStartOnSession && s.workPresetId ? this.deps.presets.get(s.workPresetId) : null;
+    if (!work || s.breakBehavior === 'stop') return;
+    // Перерыву предшествовал Focus с рабочим профилем — восстанавливаем это и применяем поведение перерыва
+    this.load(work);
+    this.mix.playing = true;
+    this.autoStarted = true;
+    const rest = s.breakBehavior === 'switch' && s.breakPresetId ? this.deps.presets.get(s.breakPresetId) : null;
+    if (s.breakBehavior === 'lower' || rest) this.applyBreakBehavior();
+    else this.push();
+  }
+
+  /** Подписка на TimerEngine: sessionStarted (Focus / перерыв) и state (остановка сессии); восстановленная сессия. */
   bindTimer(timer: TimerEventsSource): Unsubscribe {
-    let last: TimerStatus = 'idle';
+    const current = timer.snapshot();
+    let last: TimerStatus = current.status;
+    this.resumeSession(current);
     const offs = [
       timer.on('sessionStarted', (snap) => {
         if (snap.kind === 'focus') this.applyFocusBehavior();
@@ -290,7 +320,7 @@ export class AudioController extends TypedEmitter<AudioEvents> {
 
   status(): AudioStatus {
     return {
-      playing: this.mix.playing,
+      playing: this.mix.playing || this.fadeTimer !== null,
       presetId: this.mix.presetId,
       tracks: this.mix.tracks.map((t) => ({ ...t })),
       masterVolume: this.deps.settings.get().masterVolume,
@@ -314,7 +344,9 @@ export class AudioController extends TypedEmitter<AudioEvents> {
           : { type: 'url' as const, url: soundUrl(def.id) };
       tracks.push({ soundId: t.soundId, source, gain: t.volume });
     }
-    return { type: 'apply', playing: this.mix.playing, masterGain: level, fadeMs: this.mix.playing ? 0 : fadeMs, tracks };
+    // Затухание уже идёт — любая следующая команда в тишине продолжает его, а не обрывает
+    const fadeLeft = this.fadeTimer ? Math.max(0, this.fadeEndsAt - Date.now()) : 0;
+    return { type: 'apply', playing: this.mix.playing, masterGain: level, fadeMs: this.mix.playing ? 0 : Math.max(fadeMs, fadeLeft), tracks };
   }
 
   // ── Внутреннее ─────────────────────────────────────────────────────────
@@ -352,8 +384,25 @@ export class AudioController extends TypedEmitter<AudioEvents> {
   }
 
   private push(fadeMs = 0): AudioStatus {
-    this.deps.engine.send(this.engineCommand(fadeMs));
+    const cmd = this.engineCommand(fadeMs);
+    this.deps.engine.send(cmd);
+    if (cmd.type === 'apply') this.trackFade(cmd.playing ? 0 : cmd.fadeMs);
     return this.emitStatus();
+  }
+
+  /** Движок затухает fadeMs — до конца затухания статус остаётся «играет», затем рассылается тишина. */
+  private trackFade(fadeMs: number): void {
+    const endsAt = Date.now() + fadeMs;
+    if (this.fadeTimer && fadeMs > 0 && endsAt <= this.fadeEndsAt + 1) return; // продолжение того же затухания
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    this.fadeTimer = null;
+    if (fadeMs <= 0) return;
+    this.fadeEndsAt = endsAt;
+    this.fadeTimer = setTimeout(() => {
+      this.fadeTimer = null;
+      this.emitStatus();
+    }, fadeMs);
+    this.fadeTimer.unref?.();
   }
 
   private emitStatus(): AudioStatus {

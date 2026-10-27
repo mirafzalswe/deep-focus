@@ -102,11 +102,62 @@ describe('микшер', () => {
   it('остановка — затухание fadeOutMs; без fade — сразу', () => {
     sound.fadeOutMs = 2500;
     audio.play('brown-noise');
-    expect(audio.stop({ fade: true }).playing).toBe(false);
+    audio.stop({ fade: true });
     expect(last()).toMatchObject({ playing: false, fadeMs: 2500 });
     audio.play('brown-noise');
-    audio.stop({ fade: false });
+    expect(audio.stop({ fade: false }).playing).toBe(false);
     expect(last()).toMatchObject({ playing: false, fadeMs: 0 });
+  });
+
+  describe('статус «играет» во время затухания (§5.6)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('держится до конца fadeOutMs, затем рассылается тишина; повторный стоп затухание не перезапускает', () => {
+      sound.fadeOutMs = 1500;
+      audio.play('brown-noise');
+      expect(audio.stop().playing).toBe(true);
+      expect(last()).toMatchObject({ playing: false, fadeMs: 1500 });
+      vi.advanceTimersByTime(1000);
+      expect(audio.status().playing).toBe(true);
+      const commands = sent.length;
+      audio.stop();
+      expect(sent.length).toBe(commands);
+      vi.advanceTimersByTime(499);
+      expect(audio.status().playing).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(audio.status().playing).toBe(false);
+      expect(statuses.at(-1)!.playing).toBe(false);
+    });
+
+    it('play во время затухания — снова играет, отложенная «тишина» не приходит', () => {
+      audio.play('brown-noise');
+      audio.stop();
+      audio.play('rain-focus');
+      vi.advanceTimersByTime(5000);
+      expect(audio.status()).toMatchObject({ playing: true, presetId: 'rain-focus' });
+      expect(statuses.at(-1)!.playing).toBe(true);
+    });
+
+    it('другая команда движку во время затухания (настройки, отчёт движка) не обрывает его', () => {
+      sound.fadeOutMs = 1500;
+      audio.play('brown-noise');
+      audio.stop();
+      vi.advanceTimersByTime(500);
+      audio.refresh();
+      expect(last()).toMatchObject({ playing: false, fadeMs: 1000 });
+      expect(audio.engineCommand()).toMatchObject({ playing: false, fadeMs: 1000 });
+      expect(audio.status().playing).toBe(true);
+      vi.advanceTimersByTime(1000);
+      expect(audio.status().playing).toBe(false);
+    });
+
+    it('стоп без затухания во время затухания — тишина сразу', () => {
+      audio.play('brown-noise');
+      audio.stop();
+      expect(audio.stop({ fade: false }).playing).toBe(false);
+      expect(last()).toMatchObject({ playing: false, fadeMs: 0 });
+    });
   });
 
   it('свой список дорожек вместо пресета', () => {
@@ -207,8 +258,9 @@ describe('реакция на таймер (§5.8–5.10)', () => {
     sound.breakBehavior = 'stop';
     focus();
     timer.switchKind('shortBreak');
-    expect(audio.status().playing).toBe(false);
     expect(last()).toMatchObject({ playing: false, fadeMs: 1500 });
+    vi.advanceTimersByTime(1500);
+    expect(audio.status().playing).toBe(false);
     timer.switchKind('focus');
     expect(audio.status()).toMatchObject({ playing: true, presetId: 'brown-noise' });
   });
@@ -248,8 +300,76 @@ describe('реакция на таймер (§5.8–5.10)', () => {
   it('остановка сессии гасит включённый ею звук затуханием', () => {
     focus();
     timer.stop();
-    expect(audio.status().playing).toBe(false);
     expect(last()).toMatchObject({ playing: false, fadeMs: 1500 });
+    vi.advanceTimersByTime(1500);
+    expect(audio.status().playing).toBe(false);
+  });
+
+  describe('перезапуск приложения посреди сессии (§2.14, §5.9)', () => {
+    /** Прошлый запуск: сессия дошла до kind и «упала»; новый запуск — свежие таймер и микшер на той же базе. */
+    function restart(kind: 'focus' | 'shortBreak', opts: { pause?: boolean } = {}): { timer2: TimerEngine; audio2: AudioController; sent2: Apply[] } {
+      focus();
+      if (kind !== 'focus') timer.switchKind(kind);
+      if (opts.pause) timer.pause();
+      timer.dispose();
+      vi.advanceTimersByTime(30_000);
+      const timer2 = new TimerEngine({ clock: { now: () => Date.now() }, store: storageTimerStore(storage), settings: () => timerSettings });
+      timer2.recover(Date.now());
+      const sent2: Apply[] = [];
+      const audio2 = new AudioController({
+        engine: { send: (cmd) => cmd.type === 'apply' && sent2.push(cmd) },
+        library: new SoundLibrary(storage, roots),
+        presets: { get: (id) => storage.soundPresets.get(id) },
+        settings: { get: () => sound, patch: (p) => (sound = { ...sound, ...p }) },
+      });
+      audio2.bindTimer(timer2);
+      timers.push(timer2);
+      return { timer2, audio2, sent2 };
+    }
+    const timers: TimerEngine[] = [];
+    afterEach(() => timers.splice(0).forEach((x) => x.dispose()));
+
+    it('идущий Focus восстановлен — рабочий профиль снова играет; стоп сессии гасит его затуханием', () => {
+      const { timer2, audio2, sent2 } = restart('focus');
+      expect(timer2.snapshot()).toMatchObject({ status: 'running', kind: 'focus', recovered: true });
+      expect(audio2.status()).toMatchObject({ playing: true, presetId: 'brown-noise' });
+      expect(sent2.at(-1)).toMatchObject({ playing: true, masterGain: 0.8 * 0.8 });
+      timer2.stop();
+      expect(sent2.at(-1)).toMatchObject({ playing: false, fadeMs: 1500 });
+    });
+
+    it('Focus на паузе восстановлен — звук тоже (на паузе сессия звук не гасит)', () => {
+      const { audio2 } = restart('focus', { pause: true });
+      expect(audio2.status()).toMatchObject({ playing: true, presetId: 'brown-noise' });
+    });
+
+    it('перерыв восстановлен — по поведению перерыва: switch, lower, continue, stop', () => {
+      sound.breakBehavior = 'switch';
+      expect(restart('shortBreak').audio2.status()).toMatchObject({ playing: true, presetId: 'forest' });
+
+      sound.breakBehavior = 'lower';
+      sound.lowerFactor = 0.5;
+      const lower = restart('shortBreak');
+      expect(lower.audio2.status()).toMatchObject({ playing: true, presetId: 'brown-noise' });
+      expect(lower.sent2.at(-1)!.masterGain).toBeCloseTo(0.8 * 0.8 * 0.5);
+
+      sound.breakBehavior = 'continue';
+      const cont = restart('shortBreak');
+      expect(cont.audio2.status()).toMatchObject({ playing: true, presetId: 'brown-noise' });
+      expect(cont.sent2.at(-1)).toMatchObject({ playing: true, masterGain: 0.8 * 0.8 });
+
+      sound.breakBehavior = 'stop';
+      const stop = restart('shortBreak');
+      expect(stop.audio2.status().playing).toBe(false);
+      expect(stop.sent2.filter((c) => c.playing)).toEqual([]);
+    });
+
+    it('autoStartOnSession выключено — восстановленная сессия звук не включает', () => {
+      sound.autoStartOnSession = false;
+      const { audio2, sent2 } = restart('focus');
+      expect(audio2.status().playing).toBe(false);
+      expect(sent2).toEqual([]);
+    });
   });
 
   it('звук, включённый вручную, остановка сессии не трогает', () => {

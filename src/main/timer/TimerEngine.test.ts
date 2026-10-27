@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/defaults';
 import type { AppSettings, SessionRecord, TimerSnapshot } from '../../shared/types';
 import { openStorage, type Storage } from '../db';
-import { storageTimerStore, TimerEngine } from './TimerEngine';
+import { storageTimerStore, TimerEngine, TimerLockedError, type TimerChange } from './TimerEngine';
 
 const MIN = 60_000;
 const T0 = Date.UTC(2026, 9, 27, 9, 0, 0);
@@ -368,5 +368,41 @@ describe('восстановление', () => {
     storage.recovery.put({ status: 'running', garbage: true }, T0);
     engine = makeEngine();
     expect(engine.recover(Date.now()).status).toBe('idle');
+  });
+});
+
+describe('проверка команд (setGuard, Strict §4.7)', () => {
+  it('видит, куда команда переведёт сессию; отказ — TimerLockedError без изменений; конец интервала по времени не проверяется', () => {
+    const seen: TimerChange[] = [];
+    let refuse = true;
+    engine.setGuard((change) => {
+      seen.push(change);
+      return refuse && change.type !== 'pause' && change.type !== 'restartSession' ? 'timer.strict.refused' : null;
+    });
+    focus();
+    expect(seen).toEqual([]); // старт новой сессии не проверяется
+    expect(() => engine.command({ type: 'stop' })).toThrow(TimerLockedError);
+    expect(() => engine.command({ type: 'reset' })).toThrow('timer.strict.refused');
+    expect(() => engine.command({ type: 'skipSession' })).toThrow(TimerLockedError);
+    expect(() => engine.command({ type: 'switchKind', kind: 'longBreak' })).toThrow(TimerLockedError);
+    engine.command({ type: 'pause' });
+    engine.command({ type: 'resume' });
+    engine.command({ type: 'restartSession' });
+    expect(seen).toEqual([
+      { type: 'stop', kind: null, status: 'idle' },
+      { type: 'reset', kind: null, status: 'idle' },
+      { type: 'skipSession', kind: 'shortBreak', status: 'running' },
+      { type: 'switchKind', kind: 'longBreak', status: 'running' },
+      { type: 'pause', kind: 'focus', status: 'paused' },
+      { type: 'restartSession', kind: 'focus', status: 'running' },
+    ]);
+    expect(engine.snapshot()).toMatchObject({ status: 'running', kind: 'focus' });
+    expect(ended.map((r) => r.endReason)).toEqual(['restarted']);
+
+    settings.autoSwitch = true;
+    advance(25 * MIN + 1000);
+    expect(engine.snapshot()).toMatchObject({ status: 'running', kind: 'shortBreak' });
+    refuse = false;
+    expect(engine.command({ type: 'stop' }).status).toBe('idle');
   });
 });

@@ -10,7 +10,7 @@ import type { MainContext } from '../context';
 import { handle } from '../ipc';
 import { v, type Check } from '../validate';
 import { blockedPageHtml } from './blockedPage';
-import { BlockerController, STRICT_LOCKED_KEY, type BlockerStore } from './BlockerController';
+import { BlockerController, STRICT_LOCKED_KEY, strictTimerGuard, type BlockerStore } from './BlockerController';
 import { normalizeDomain } from './domain';
 import { PacServer } from './PacServer';
 import { createWindowsSystemProxy, releaseOurPacSync, type ProxySettings, type SystemProxy } from './SystemProxy';
@@ -139,6 +139,10 @@ export async function registerBlocker(ctx: MainContext): Promise<void> {
   reapply();
 
   ctx.services.timer?.on('state', reapply);
+  // Strict (§4.7): Стоп/Сброс/Пропустить/смена интервала/пауза не снимают блокировку в обход ожидания и фразы.
+  // Выход из приложения снимает блокировку всегда — на выходе проверка снимается первой (раньше остановки сессии).
+  ctx.services.timer?.setGuard(strictTimerGuard(controller));
+  app.prependListener('before-quit', () => ctx.services.timer?.setGuard(null));
   settings.on('change', (next, prev) => {
     if (
       JSON.stringify(next.blocker) !== JSON.stringify(prev.blocker) ||

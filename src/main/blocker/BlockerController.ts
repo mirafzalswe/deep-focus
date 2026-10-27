@@ -9,6 +9,7 @@
 //  • ни один метод не бросает наружу — сбой блокировки не трогает таймер и звук (§4.15).
 import type { AppSettings, BlockContext, BlockerStatus, BlockRule } from '../../shared/types';
 import { TypedEmitter } from '../events';
+import type { TimerGuard } from '../timer/TimerEngine';
 import { buildPac, type Upstream } from './pac';
 import { isOurPacUrl } from './PacServer';
 import { activeDomainsFor, activeRulesFor } from './rules';
@@ -63,6 +64,18 @@ export interface StrictSettings {
 
 /** i18n-ключ отказа: изменение сняло бы блокировку, а Strict во время сессии этого не позволяет. */
 export const STRICT_LOCKED_KEY = 'blocker.invalid.strictLocked';
+
+/** i18n-ключ отказа команде таймера: Strict во время сессии не даёт завершить её раньше без ожидания и фразы. */
+export const STRICT_SESSION_KEY = 'timer.strict.refused';
+
+/**
+ * Проверка команд таймера для TimerEngine.setGuard (§4.7): пока Strict запер блокировку, команда, после которой
+ * блокировалось бы меньше доменов (Стоп, Сброс, Пропустить, смена интервала, пауза без блокировки на паузе),
+ * отклоняется. Снятие фразой (confirmUnlock) отпирает. Выход из приложения сюда не ходит — он снимает блокировку всегда.
+ */
+export function strictTimerGuard(controller: BlockerController): TimerGuard {
+  return (change) => (controller.allowsTimer({ timerKind: change.kind, timerStatus: change.status }) ? null : STRICT_SESSION_KEY);
+}
 
 /** В after нет домена из before (сам домен или его родитель в after блокирует и поддомены). */
 const removesDomain = (before: readonly string[], after: readonly string[]) =>
@@ -182,6 +195,14 @@ export class BlockerController extends TypedEmitter<{ status: (s: BlockerStatus)
       activeDomainsFor(rules, { ...ctx, scheduledEnabled: prev.blocker.scheduledEnabled }),
       activeDomainsFor(rules, { ...ctx, scheduledEnabled: next.blocker.scheduledEnabled }),
     );
+  }
+
+  /** Strict во время сессии (§4.7): можно ли перевести таймер в такое состояние, не убрав действующий домен. */
+  allowsTimer(next: Pick<BlockContext, 'timerKind' | 'timerStatus'>): boolean {
+    const ctx = this.lockedContext();
+    if (!ctx) return true;
+    const rules = this.deps.store.rules();
+    return !removesDomain(activeDomainsFor(rules, ctx), activeDomainsFor(rules, { ...ctx, ...next }));
   }
 
   /** Перепроверить механизм; после сбоя — попробовать включить снова. */

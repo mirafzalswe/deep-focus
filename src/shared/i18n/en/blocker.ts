@@ -87,7 +87,8 @@ export const blocker: Messages['blocker'] = {
     explainAvailable: 'What always stays available',
     available1: 'Quitting the app from the tray — it removes blocking and restores settings immediately.',
     available2: 'Windows settings, Task Manager and control of your computer are not restricted in any way.',
-    available3: 'Stopping the timer, and blocking outside a session (schedules), are removed without waiting.',
+    available3:
+      'Ending a session early (Stop, Reset, Skip) takes the same wait and phrase; blocking outside a session (schedules) is removed without waiting.',
     explainAccept: 'Turn on strict mode',
     locked: 'Strict mode: blocking is locked until the session ends',
     waiting: 'Can be unlocked in {time}',

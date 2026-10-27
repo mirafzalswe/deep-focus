@@ -1,8 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/defaults';
-import type { AppSettings, BlockContext, BlockerStatus, BlockRule } from '../../shared/types';
+import type { AppSettings, BlockContext, BlockerStatus, BlockRule, TimerCommand } from '../../shared/types';
 import { translateDynamic } from '../../shared/i18n';
-import { BlockerController, STRICT_LOCKED_KEY, type BlockerStore, type PacHost } from './BlockerController';
+import { openStorage } from '../db';
+import { storageTimerStore, TimerEngine, TimerLockedError } from '../timer/TimerEngine';
+import {
+  BlockerController,
+  STRICT_LOCKED_KEY,
+  STRICT_SESSION_KEY,
+  strictTimerGuard,
+  type BlockerStore,
+  type PacHost,
+} from './BlockerController';
 import type { ProxySettings, SystemProxy } from './SystemProxy';
 
 const ORIGINAL: ProxySettings = {
@@ -411,5 +420,103 @@ describe('BlockerController', () => {
     expect((await t.controller.applyFor(focus())).state).toBe('error');
     t.fake.selfCheck = true;
     expect((await t.controller.recheck()).state).toBe('active');
+  });
+});
+
+describe('Strict и команды таймера (§4.7): завершить сессию раньше — только после ожидания и фразы', () => {
+  const timers: TimerEngine[] = [];
+  afterEach(() => timers.splice(0).forEach((x) => x.dispose()));
+
+  /** Настоящий TimerEngine на фиктивных часах; блокировка следует за его снимками, как в registerBlocker. */
+  function session(level: 'standard' | 'strict', keepBlockingOnPause = true) {
+    const t = setup({ blocker: { level, strictUnlockDelaySec: 60 } });
+    let clock = T0;
+    const timerSettings = { ...DEFAULT_SETTINGS.timer, keepBlockingOnPause };
+    const storage = openStorage(':memory:');
+    const timer = new TimerEngine({ clock: { now: () => clock }, store: storageTimerStore(storage), settings: () => timerSettings });
+    timers.push(timer);
+    timer.recover(clock);
+    timer.setGuard(strictTimerGuard(t.controller));
+    const sync = () => {
+      const snap = timer.snapshot();
+      const active = snap.status === 'running' || snap.status === 'paused';
+      return t.controller.applyFor({
+        timerKind: active ? snap.kind : null,
+        timerStatus: snap.status,
+        now: clock,
+        scheduledEnabled: false,
+        keepBlockingOnPause: timerSettings.keepBlockingOnPause,
+      });
+    };
+    const refused = (cmd: TimerCommand) => {
+      const before = timer.snapshot();
+      let error: unknown = null;
+      try {
+        timer.command(cmd);
+      } catch (err) {
+        error = err;
+      }
+      expect(error, cmd.type).toBeInstanceOf(TimerLockedError);
+      expect((error as TimerLockedError).reasonKey).toBe(STRICT_SESSION_KEY);
+      expect(timer.snapshot()).toMatchObject({ status: before.status, kind: before.kind, sessionId: before.sessionId });
+    };
+    const tick = (ms: number) => {
+      clock += ms;
+      t.tick(ms);
+    };
+    return { ...t, timer, sync, refused, tick };
+  }
+
+  it('Strict: Стоп, Сброс, Пропустить сессию, смена интервала не проходят, блокировка держится; Рестарт и Пауза (с блокировкой на паузе) — можно', async () => {
+    const s = session('strict');
+    s.timer.command({ type: 'start', mode: 'pomodoro' });
+    expect(await s.sync()).toMatchObject({ state: 'active', strictLocked: true });
+    s.refused({ type: 'stop' });
+    s.refused({ type: 'reset' });
+    s.refused({ type: 'skipSession' });
+    s.refused({ type: 'switchKind', kind: 'shortBreak' });
+    expect(await s.sync()).toMatchObject({ state: 'active', strictLocked: true, activeDomains: ['reddit.com', 'youtube.com'] });
+
+    s.timer.command({ type: 'pause' });
+    expect(await s.sync()).toMatchObject({ state: 'active', strictLocked: true });
+    s.timer.command({ type: 'resume' });
+    s.timer.command({ type: 'restartSession' });
+    expect(s.timer.snapshot()).toMatchObject({ status: 'running', kind: 'focus' });
+    expect(await s.sync()).toMatchObject({ state: 'active', strictLocked: true });
+  });
+
+  it('Strict без блокировки на паузе: Пауза сняла бы блокировку — тоже не проходит', async () => {
+    const s = session('strict', false);
+    s.timer.command({ type: 'start', mode: 'pomodoro' });
+    await s.sync();
+    s.refused({ type: 'pause' });
+  });
+
+  it('после ожидания и фразы Стоп проходит и настройки прокси возвращаются ровно исходными', async () => {
+    const s = session('strict');
+    s.timer.command({ type: 'start', mode: 'pomodoro' });
+    await s.sync();
+    await s.controller.requestUnlock();
+    s.tick(30_000);
+    expect((await s.controller.confirmUnlock('Я хочу отвлечься')).strictLocked).toBe(true);
+    s.refused({ type: 'stop' });
+    s.tick(30_000);
+    expect((await s.controller.confirmUnlock('Я хочу отвлечься')).strictLocked).toBe(false);
+    expect(s.timer.command({ type: 'stop' }).status).toBe('idle');
+    expect(await s.sync()).toMatchObject({ state: 'off', strictLocked: false });
+    expect(s.registry).toEqual(ORIGINAL);
+  });
+
+  it('Standard: Стоп сразу снимает блокировку', async () => {
+    const s = session('standard');
+    s.timer.command({ type: 'start', mode: 'pomodoro' });
+    expect(await s.sync()).toMatchObject({ state: 'active', strictLocked: false });
+    expect(s.timer.command({ type: 'stop' }).status).toBe('idle');
+    expect(await s.sync()).toMatchObject({ state: 'off' });
+    expect(s.registry).toEqual(ORIGINAL);
+  });
+
+  it('отказ таймера показывается текстом на обоих языках', () => {
+    for (const lang of ['ru', 'en'] as const) expect(translateDynamic(lang, STRICT_SESSION_KEY), lang).not.toBe(STRICT_SESSION_KEY);
   });
 });

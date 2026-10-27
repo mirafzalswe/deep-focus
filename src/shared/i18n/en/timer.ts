@@ -49,6 +49,15 @@ export const timer: Messages['timer'] = {
   },
   cycle: 'Session {done} of {total} before the long break',
   recovered: 'Session restored after restart',
+  strict: {
+    refused:
+      'Strict mode: this command would remove blocking before the interval ends. Remove blocking first — wait and type the phrase in the Blocking section.',
+    locked:
+      'Strict mode: Stop, Reset and Skip session become available after blocking is removed (a {sec} s wait and the phrase) or when the interval ends.',
+    pauseLocked: 'Pause too: blocking is lifted during a pause (“Keep blocking on pause” is off).',
+    exitHint: 'Quitting the app from the tray is always available and removes blocking immediately.',
+    unlock: 'Remove blocking…',
+  },
   unlimited: 'No limit',
   task: 'Task',
   noTask: 'No task',

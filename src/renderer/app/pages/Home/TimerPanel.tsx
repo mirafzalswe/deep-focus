@@ -5,7 +5,12 @@ import type { MessageKey } from '@shared/i18n';
 import type { IntervalKind, Task, TimerCommand, TimerMode, TimerSnapshot } from '@shared/types';
 import { useSettings, useT } from '../../../shared/settings';
 import { Button, cx, Segmented } from '../../../shared/ui';
+import type { PageProps } from '../../routes';
+import { useBlockerStatus } from '../Blocker/useBlocker';
 import { formatClock, sendTimer, useTimerPresets, useTimerSnapshot } from '../Timer/useTimer';
+
+/** Отказ main по Strict приходит ошибкой IPC с ключом причины в тексте. */
+const STRICT_REFUSED_KEY = 'timer.strict.refused';
 
 interface Action {
   id: string;
@@ -75,10 +80,12 @@ function ProgressRing({ progress, tone, children }: { progress: number; tone: 'f
   );
 }
 
-export function TimerPanel() {
+export function TimerPanel({ navigate }: Partial<Pick<PageProps, 'navigate'>> = {}) {
   const t = useT();
   const { settings } = useSettings();
   const snap = useTimerSnapshot();
+  const blocker = useBlockerStatus();
+  const [refused, setRefused] = useState(false);
   const { presets } = useTimerPresets();
   const [modeChoice, setModeChoice] = useState<TimerMode | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -108,9 +115,17 @@ export function TimerPanel() {
 
   const start: TimerCommand = { type: 'start', mode, taskId: taskId ?? null };
   const actions = actionsFor(view, start, settings.timer.freeExtendMin);
+  // Strict (§4.7): пока блокировка заперта, команды, которые сняли бы её раньше конца интервала, недоступны
+  const strictLocked = (blocker?.strictLocked ?? false) && (snap.status === 'running' || snap.status === 'paused');
+  const lockedIds = strictLocked ? ['stop', 'skipSession', 'reset', ...(settings.timer.keepBlockingOnPause ? [] : ['pause'])] : [];
   const run = (cmd: TimerCommand) => {
     if (cmd.type === 'start' && cmd !== start) cmd = { ...cmd, taskId: taskId ?? null };
-    void sendTimer(cmd).then(() => setModeChoice(null));
+    setRefused(false);
+    void sendTimer(cmd)
+      .then(() => setModeChoice(null))
+      .catch((err: unknown) => {
+        if (String(err).includes(STRICT_REFUSED_KEY)) setRefused(true);
+      });
   };
 
   return (
@@ -181,12 +196,28 @@ export function TimerPanel() {
             data-timer-action={a.id}
             variant={a.primary ? 'primary' : 'secondary'}
             className={a.primary ? 'min-w-32 justify-center px-6 py-2.5 text-base' : undefined}
+            disabled={lockedIds.includes(a.id)}
             onClick={() => run(a.cmd)}
           >
             {t(a.labelKey, a.params)}
           </Button>
         ))}
       </div>
+
+      {(strictLocked || refused) && (
+        <div data-timer-strict className="max-w-md text-center text-xs text-muted">
+          <p role={refused ? 'alert' : undefined}>
+            {refused && !strictLocked ? t('timer.strict.refused') : t('timer.strict.locked', { sec: settings.blocker.strictUnlockDelaySec })}
+            {strictLocked && !settings.timer.keepBlockingOnPause && ` ${t('timer.strict.pauseLocked')}`}
+          </p>
+          <p className="mt-1">{t('timer.strict.exitHint')}</p>
+          {navigate && (
+            <Button variant="ghost" className="mt-1" data-timer-action="unlock" onClick={() => navigate('blocker')}>
+              {t('timer.strict.unlock')}
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="text-sm text-muted">
         {idle || snap.status === 'awaiting' ? (

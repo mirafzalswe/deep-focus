@@ -12,7 +12,7 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launchApp, removeUserData, ROOT, tempUserData } from './helpers';
+import { launchApp, launchMain, removeUserData, ROOT, tempUserData } from './helpers';
 
 interface ProxyValues {
   proxyEnable: number | null;
@@ -226,6 +226,76 @@ test('сбой с включённой блокировкой → DeepFocus --cl
     expect(systemProxyFor('https://youtube.com')).toBe('https://youtube.com/');
   } finally {
     if (app) await app.close().catch(() => undefined);
+    forceRestore(original);
+    expect(readProxy()).toEqual(original);
+    removeUserData(userData);
+  }
+});
+
+test('Strict во время Focus: «Стоп» недоступен и отклоняется, блокировка держится; после ожидания и фразы — стоп; выход через трей снимает блокировку всегда', async () => {
+  test.skip(!REAL_REGISTRY, REAL_REGISTRY_SKIP);
+  test.setTimeout(240_000);
+  const original = readProxy();
+  const userData = tempUserData();
+  let app: ElectronApplication | null = null;
+  try {
+    let page: Page;
+    ({ app, page } = await launchMain(userData));
+    await page.evaluate(async () => {
+      await window.deepFocus.blocker.giveConsent();
+      await window.deepFocus.settings.patch({
+        blocker: { enabled: true, level: 'strict', strictUnlockDelaySec: 3 },
+        widget: { showOnSessionStart: false },
+        general: { quitBehavior: 'stop' },
+      });
+    });
+    await startFocus(page);
+    await expect.poll(async () => (await blockerStatus(page)).state, { timeout: 45_000 }).toBe('active');
+    expect((await blockerStatus(page)).strictLocked).toBe(true);
+
+    // интерфейс: Стоп/Сброс/Пропустить недоступны, объяснение говорит про ожидание, фразу и трей; Пауза — можно
+    await expect(page.locator('[data-timer-action="stop"]')).toBeDisabled();
+    await expect(page.locator('[data-timer-action="reset"]')).toBeDisabled();
+    await expect(page.locator('[data-timer-action="skipSession"]')).toBeDisabled();
+    await expect(page.locator('[data-timer-action="pause"]')).toBeEnabled();
+    await expect(page.locator('[data-timer-strict]')).toContainText('фраза');
+    await expect(page.locator('[data-timer-strict]')).toContainText('трей');
+
+    // в обход интерфейса (виджет, IPC) — отказ, сессия и блокировка остаются
+    for (const type of ['stop', 'reset', 'skipSession'] as const) {
+      const err = await page.evaluate((t) => window.deepFocus.timer.command({ type: t }).then(() => null, (e: Error) => e.message), type);
+      expect(err, type).toContain('timer.strict.refused');
+    }
+    const kindErr = await page.evaluate(() =>
+      window.deepFocus.timer.command({ type: 'switchKind', kind: 'shortBreak' }).then(() => null, (e: Error) => e.message),
+    );
+    expect(kindErr).toContain('timer.strict.refused');
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => window.deepFocus.timer.snapshot())).toMatchObject({ status: 'running', kind: 'focus' });
+    expect(await blockerStatus(page)).toMatchObject({ state: 'active', strictLocked: true });
+
+    // ожидание + фраза → Стоп доступен и снимает блокировку, настройки ровно исходные
+    await page.evaluate(() => window.deepFocus.blocker.requestUnlock());
+    await page.waitForTimeout(3200);
+    await page.evaluate(() => window.deepFocus.blocker.confirmUnlock('Я хочу отвлечься'));
+    await expect.poll(async () => (await blockerStatus(page)).strictLocked, { timeout: 45_000 }).toBe(false);
+    await expect(page.locator('[data-timer-action="stop"]')).toBeEnabled();
+    await page.locator('[data-timer-action="stop"]').click();
+    await expect.poll(() => page.evaluate(() => window.deepFocus.timer.snapshot().then((s) => s.status))).toBe('idle');
+    await expect.poll(async () => (await blockerStatus(page)).state, { timeout: 45_000 }).toBe('off');
+    expect(readProxy()).toEqual(original);
+
+    // R69: выход из приложения при запертой блокировке всегда возможен и снимает её
+    await startFocus(page);
+    await expect.poll(async () => (await blockerStatus(page)).strictLocked, { timeout: 45_000 }).toBe(true);
+    const proc = app.process();
+    const exited = new Promise<void>((r) => (proc.exitCode !== null ? r() : proc.once('exit', () => r())));
+    void page.evaluate(() => window.deepFocus.app.quit()).catch(() => undefined);
+    await exited;
+    expect(readProxy()).toEqual(original);
+    app = null;
+  } finally {
+    await app?.close().catch(() => undefined);
     forceRestore(original);
     expect(readProxy()).toEqual(original);
     removeUserData(userData);
