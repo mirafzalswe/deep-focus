@@ -135,6 +135,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     lowerFactor: 0.4,
     masterVolume: 0.8,
     fadeOutMs: 1500,
+    signalEnabled: true,
+    signalVolume: 0.6,
   },
   notifications: {
     enabled: true,

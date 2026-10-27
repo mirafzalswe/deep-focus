@@ -11,6 +11,8 @@ export const audio = {
     invoke<AudioStatus>(IPC.audio.setTrack, soundId, patch),
   setMaster: (volume: number) => invoke<AudioStatus>(IPC.audio.setMaster, volume),
   toggleMute: () => invoke<AudioStatus>(IPC.audio.toggleMute),
+  /** «Прослушать» сигнал: старт, затем конец интервала (громкость — settings.sound.signalVolume) */
+  previewSignal: () => invoke<void>(IPC.audio.previewSignal),
   presets: () => invoke<SoundPreset[]>(IPC.audio.presets),
   /** builtin задаёт main: свой пресет всегда false; id встроенного — отказ */
   /** builtin задаёт main (свой — всегда false); id встроенного пресета — отказ. */

@@ -380,3 +380,147 @@ describe('реакция на таймер (§5.8–5.10)', () => {
     expect(audio.status()).toMatchObject({ playing: true, presetId: 'rain-focus' });
   });
 });
+
+describe('сигнал в начале и в конце интервала', () => {
+  const MIN = 60_000;
+  type Signal = Extract<AudioEngineCommand, { type: 'signal' }>;
+  let timer: TimerEngine;
+  let timerSettings: AppSettings['timer'];
+  const signals = () => sent.filter((c): c is Signal => c.type === 'signal').map((c) => c.kind);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: Date.UTC(2026, 9, 27, 9) });
+    timerSettings = { ...DEFAULT_SETTINGS.timer };
+    timer = new TimerEngine({ clock: { now: () => Date.now() }, store: storageTimerStore(storage), settings: () => timerSettings });
+    timer.recover(Date.now());
+    audio.bindTimer(timer);
+  });
+  afterEach(() => {
+    timer.dispose();
+    vi.useRealTimers();
+  });
+
+  const focus = () => timer.command({ type: 'start', mode: 'pomodoro' });
+
+  it('по умолчанию включён, громкость 0.6', () => {
+    expect(DEFAULT_SETTINGS.sound).toMatchObject({ signalEnabled: true, signalVolume: 0.6 });
+  });
+
+  it('старт Focus — сигнал старта с громкостью signalVolume; фоновый звук не включается', () => {
+    sound.signalVolume = 0.35;
+    focus();
+    expect(sent.filter((c) => c.type === 'signal')).toEqual([{ type: 'signal', kind: 'start', volume: 0.35 }]);
+    expect(applies()).toEqual([]);
+    expect(audio.status().playing).toBe(false);
+  });
+
+  it('Focus дошёл до конца без автоперехода — сигнал конца; старт перерыва пользователем — сигнал старта', () => {
+    focus();
+    vi.advanceTimersByTime(25 * MIN + 1000);
+    expect(timer.snapshot().status).toBe('awaiting');
+    expect(signals()).toEqual(['start', 'end']);
+    timer.command({ type: 'start', mode: 'pomodoro' });
+    expect(timer.snapshot()).toMatchObject({ status: 'running', kind: 'shortBreak' });
+    expect(signals()).toEqual(['start', 'end', 'start']);
+    vi.advanceTimersByTime(5 * MIN + 1000);
+    expect(signals()).toEqual(['start', 'end', 'start', 'end']);
+  });
+
+  it('автопереход: звучит только сигнал конца, старт следующего интервала не накладывается', () => {
+    timerSettings.autoSwitch = true;
+    focus();
+    vi.advanceTimersByTime(25 * MIN + 1000);
+    expect(timer.snapshot()).toMatchObject({ status: 'running', kind: 'shortBreak' });
+    expect(signals()).toEqual(['start', 'end']);
+    vi.advanceTimersByTime(5 * MIN + 1000);
+    expect(timer.snapshot()).toMatchObject({ status: 'running', kind: 'focus' });
+    expect(signals()).toEqual(['start', 'end', 'end']);
+  });
+
+  it('ручная остановка, сброс, пропуск Focus и перерыва — без сигнала', () => {
+    focus();
+    timer.stop();
+    focus();
+    vi.advanceTimersByTime(2 * MIN);
+    timer.reset();
+    expect(signals()).toEqual(['start', 'start']);
+    sent.length = 0;
+    focus();
+    timer.skipSession();
+    expect(timer.snapshot()).toMatchObject({ status: 'running', kind: 'shortBreak' });
+    timer.skipBreak();
+    expect(timer.snapshot()).toMatchObject({ status: 'running', kind: 'focus' });
+    expect(signals()).toEqual(['start']);
+  });
+
+  it('пауза и продолжение — без сигнала', () => {
+    focus();
+    timer.pause();
+    timer.resume();
+    expect(signals()).toEqual(['start']);
+  });
+
+  it('продолжение сессии после перезапуска приложения — без сигнала', () => {
+    focus();
+    timer.dispose();
+    vi.advanceTimersByTime(30_000);
+    const timer2 = new TimerEngine({ clock: { now: () => Date.now() }, store: storageTimerStore(storage), settings: () => timerSettings });
+    timer2.recover(Date.now());
+    const sent2: AudioEngineCommand[] = [];
+    const audio2 = new AudioController({
+      engine: { send: (cmd) => sent2.push(cmd) },
+      library: new SoundLibrary(storage, roots),
+      presets: { get: (id) => storage.soundPresets.get(id) },
+      settings: { get: () => sound, patch: (p) => (sound = { ...sound, ...p }) },
+    });
+    audio2.bindTimer(timer2);
+    expect(timer2.snapshot()).toMatchObject({ status: 'running', recovered: true });
+    expect(sent2.filter((c) => c.type === 'signal')).toEqual([]);
+    timer2.dispose();
+  });
+
+  it('интервал, закончившийся пока приложение не работало (recoveredCompleted), — сигнал конца', () => {
+    focus();
+    timer.dispose();
+    vi.advanceTimersByTime(40 * MIN);
+    const timer2 = new TimerEngine({ clock: { now: () => Date.now() }, store: storageTimerStore(storage), settings: () => timerSettings });
+    const sent2: AudioEngineCommand[] = [];
+    const audio2 = new AudioController({
+      engine: { send: (cmd) => sent2.push(cmd) },
+      library: new SoundLibrary(storage, roots),
+      presets: { get: (id) => storage.soundPresets.get(id) },
+      settings: { get: () => sound, patch: (p) => (sound = { ...sound, ...p }) },
+    });
+    audio2.bindTimer(timer2);
+    timer2.recover(Date.now());
+    expect(sent2.filter((c) => c.type === 'signal')).toEqual([{ type: 'signal', kind: 'end', volume: 0.6 }]);
+    timer2.dispose();
+  });
+
+  it('signalEnabled = false глушит оба сигнала', () => {
+    sound.signalEnabled = false;
+    timerSettings.autoSwitch = true;
+    focus();
+    vi.advanceTimersByTime(25 * MIN + 1000);
+    expect(timer.snapshot().kind).toBe('shortBreak');
+    expect(signals()).toEqual([]);
+  });
+
+  it('не зависит от mute и не трогает фоновый микс', () => {
+    audio.play('rain-focus');
+    audio.toggleMute();
+    const before = applies().length;
+    focus();
+    expect(sent.at(-1)).toEqual({ type: 'signal', kind: 'start', volume: 0.6 });
+    expect(applies().length).toBe(before);
+    expect(audio.status()).toMatchObject({ playing: true, muted: true });
+  });
+
+  it('«Прослушать»: старт, затем конец — даже при выключенном сигнале', () => {
+    sound.signalEnabled = false;
+    audio.previewSignal();
+    expect(signals()).toEqual(['start']);
+    vi.advanceTimersByTime(2000);
+    expect(signals()).toEqual(['start', 'end']);
+  });
+});

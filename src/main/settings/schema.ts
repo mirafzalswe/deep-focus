@@ -53,6 +53,8 @@ export const SETTINGS_SCHEMA: SettingsSchema = {
     lowerFactor: volume,
     masterVolume: volume,
     fadeOutMs: v.int(0, 60_000),
+    signalEnabled: v.bool(),
+    signalVolume: volume,
   },
   notifications: {
     enabled: v.bool(),

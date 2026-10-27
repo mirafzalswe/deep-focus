@@ -1,8 +1,8 @@
 // Настройки → Звуки (§5.8–5.10, §5.6): профили для работы и отдыха, автозапуск с сессией,
-// поведение на перерыве, громкость на перерыве, затухание при остановке.
+// поведение на перерыве, громкость на перерыве, затухание при остановке, сигнал начала и конца интервала.
 import type { AppSettings } from '@shared/types';
 import { useSettings, useT } from '../../../shared/settings';
-import { Card, Field, Segmented } from '../../../shared/ui';
+import { Button, Card, Field, Segmented } from '../../../shared/ui';
 import { useSoundPresets } from '../Sounds/useAudio';
 import { VolumeSlider } from '../Sounds/VolumeSlider';
 import { Toggle } from '../Timer/controls';
@@ -105,6 +105,31 @@ export default function SoundsTab() {
             <span className="w-12 text-right font-mono text-sm text-muted tabular-nums">
               {t('sounds.settings.fadeOutValue', { sec: fadeSec.toFixed(1) })}
             </span>
+          </div>
+        </Field>
+      </Card>
+
+      <Card title={t('sounds.settings.signalTitle')}>
+        <Field label={t('sounds.settings.signalEnabled')} hint={t('sounds.settings.signalHint')}>
+          <Toggle
+            label={t('sounds.settings.signalEnabled')}
+            checked={sound.signalEnabled}
+            onChange={(signalEnabled) => set({ signalEnabled })}
+          />
+        </Field>
+        <Field label={t('sounds.settings.signalVolume')}>
+          <div className="flex items-center gap-3">
+            <VolumeSlider
+              label={t('sounds.settings.signalVolume')}
+              value={sound.signalVolume}
+              disabled={!sound.signalEnabled}
+              onChange={(signalVolume) => set({ signalVolume })}
+              className="w-44"
+            />
+            <span className="w-10 text-right font-mono text-sm text-muted tabular-nums">{Math.round(sound.signalVolume * 100)}%</span>
+            <Button data-audio-action="preview-signal" onClick={() => void window.deepFocus.audio.previewSignal()}>
+              {t('sounds.settings.signalPreview')}
+            </Button>
           </div>
         </Field>
       </Card>

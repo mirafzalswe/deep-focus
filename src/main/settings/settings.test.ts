@@ -93,6 +93,17 @@ describe('SettingsManager', () => {
     expect(m.get().general.theme).toBe('dark');
   });
 
+  it('сигнал начала/конца интервала: старая база без полей получает значения по умолчанию, значения проверяются', () => {
+    const { signalEnabled: _e, signalVolume: _v, ...oldSound } = DEFAULT_SETTINGS.sound;
+    storage.settings.set('sound', { ...oldSound, masterVolume: 0.5 });
+    const m = new SettingsManager(storage);
+    expect(m.get().sound).toMatchObject({ masterVolume: 0.5, signalEnabled: true, signalVolume: 0.6 });
+    m.patch({ sound: { signalEnabled: false, signalVolume: 0.25 } });
+    for (const p of [{ sound: { signalVolume: 1.5 } }, { sound: { signalVolume: -0.1 } }, { sound: { signalEnabled: 'yes' } }])
+      expect(() => m.patch(p), JSON.stringify(p)).toThrow(SettingsError);
+    expect(reopen().get().sound).toMatchObject({ signalEnabled: false, signalVolume: 0.25 });
+  });
+
   it('битое значение в базе заменяется значением по умолчанию', () => {
     storage.settings.set('widget', { opacity: 'много', marginPx: 40 });
     const s = new SettingsManager(storage).get();

@@ -77,5 +77,10 @@ export const sounds: Messages['sounds'] = {
     playback: 'Playback',
     fadeOut: 'Fade-out on stop',
     fadeOutValue: '{sec} s',
+    signalTitle: 'Signal',
+    signalEnabled: 'Sound signal at the start and end of an interval',
+    signalHint: 'A short chime when Focus or a break starts and when an interval runs to the end. Plays even when sound is muted.',
+    signalVolume: 'Signal volume',
+    signalPreview: 'Preview',
   },
 };

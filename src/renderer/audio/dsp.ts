@@ -105,3 +105,37 @@ export function fileLoop(channels: Float32Array[], sampleRate: number, crossfade
   const fade = Math.min(Math.round(sampleRate * crossfadeSec), Math.floor(length / 3));
   return channels.map((c) => makeSeamlessLoop(c.subarray(start, end), length - fade, fade));
 }
+
+// ── Сигнал начала и конца интервала ──────────────────────────────────────
+// Мягкий «колокольчик»: синус с плавной атакой и экспоненциальным затуханием.
+// Старт — два восходящих тона (до → соль), конец — три нисходящих (соль → ми → до).
+
+export interface SignalNote {
+  /** частота, Гц */
+  freq: number;
+  /** начало от момента сигнала, с */
+  at: number;
+  /** нарастание до пика, с — без резкой атаки (щелчка) */
+  attack: number;
+  /** затухание до тишины после пика, с */
+  decay: number;
+  /** пик относительно громкости сигнала */
+  peak: number;
+}
+
+const C5 = 523.25;
+const E5 = 659.25;
+const G5 = 783.99;
+
+const note = (freq: number, at: number, decay: number, peak = 1): SignalNote => ({ freq, at, attack: 0.025, decay, peak });
+
+export function signalNotes(kind: 'start' | 'end'): SignalNote[] {
+  return kind === 'start'
+    ? [note(C5, 0, 0.45, 0.9), note(G5, 0.18, 0.6)]
+    : [note(G5, 0, 0.4), note(E5, 0.2, 0.4, 0.95), note(C5, 0.4, 0.75, 0.9)];
+}
+
+/** Полная длительность сигнала, с. */
+export function signalLength(kind: 'start' | 'end'): number {
+  return Math.max(...signalNotes(kind).map((n) => n.at + n.attack + n.decay));
+}

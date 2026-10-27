@@ -224,14 +224,20 @@ export type AudioEngineCommand =
       fadeMs: number;
       tracks: { soundId: string; source: EngineSource; gain: number }[];
     }
-  | { type: 'probe'; requestId: number; items: { soundId: string; url: string }[] };
+  | { type: 'probe'; requestId: number; items: { soundId: string; url: string }[] }
+  /** короткий сигнал поверх фоновых звуков: start — начало интервала, end — интервал дошёл до конца */
+  | { type: 'signal'; kind: SignalKind; volume: number };
+
+export type SignalKind = 'start' | 'end';
 
 /** скрытое окно audio → main (канал audio:engine-status). */
 export type AudioEngineReport =
   | { type: 'ready' }
   | { type: 'trackFailed'; soundId: string; reason: 'missing' | 'corrupt' }
   | { type: 'probeResult'; requestId: number; results: { soundId: string; ok: boolean }[] }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  /** сигнал не прозвучал — только в журнал, статус звука не меняется */
+  | { type: 'signalFailed'; message: string };
 
 // ── Виджет ────────────────────────────────────────────────────────────────
 export type WidgetDisplayMode = 'compact' | 'standard' | 'expanded';
@@ -284,6 +290,10 @@ export interface AppSettings {
     lowerFactor: number;
     masterVolume: number;
     fadeOutMs: number;
+    /** короткий сигнал в начале и в конце интервала (не зависит от mute и общей громкости) */
+    signalEnabled: boolean;
+    /** громкость сигнала 0..1 */
+    signalVolume: number;
   };
   notifications: {
     enabled: boolean;

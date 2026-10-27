@@ -24,6 +24,7 @@ export function isEngineReport(x: unknown): x is AudioEngineReport {
     case 'probeResult':
       return v.object({ type: v.any(), requestId: v.int(1), results: isProbeResults })(x);
     case 'error':
+    case 'signalFailed':
       return v.object({ type: v.any(), message: v.str({ max: 1000 }) })(x);
     default:
       return false;
@@ -147,8 +148,9 @@ export function createEngineHost(opts: EngineHostOptions): EngineHost {
       const w = ensure();
       if (!w) return;
       if (!ready) {
-        if (cmd.type === 'probe') pending.push(cmd);
-        return; // apply придёт целиком из current() после ready
+        // apply придёт целиком из current() после ready; проверки и сигналы ждут в очереди
+        if (cmd.type !== 'apply') pending.push(cmd);
+        return;
       }
       deliver(w, cmd);
     },

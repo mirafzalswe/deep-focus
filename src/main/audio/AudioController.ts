@@ -6,6 +6,8 @@ import type {
   AudioEngineCommand,
   AudioEngineReport,
   AudioStatus,
+  SessionRecord,
+  SignalKind,
   SoundAvailability,
   SoundDef,
   SoundPreset,
@@ -23,8 +25,20 @@ export interface EnginePort {
 
 export interface TimerEventsSource {
   on(event: 'sessionStarted' | 'state', listener: (snap: TimerSnapshot) => void): Unsubscribe;
+  on(event: 'intervalEnded', listener: (record: SessionRecord) => void): Unsubscribe;
   snapshot(): TimerSnapshot;
 }
+
+/** Интервал дошёл до конца — сигнал конца. */
+const SIGNAL_END_REASONS: ReadonlyArray<SessionRecord['endReason']> = ['completed', 'recoveredCompleted'];
+/**
+ * Интервал начался сразу после конца предыдущего в том же переходе таймера. Сигнал старта — только когда
+ * предыдущий закрыт перезапуском или сменой вида (новый старт пользователем). После естественного конца
+ * (автопереход) звучит только сигнал конца, после пропуска — ничего.
+ */
+const SIGNAL_START_AFTER: ReadonlyArray<SessionRecord['endReason']> = ['restarted', 'stopped'];
+/** «Прослушать»: пауза между сигналом старта и сигналом конца, мс */
+const PREVIEW_GAP_MS = 1200;
 
 export interface AudioControllerDeps {
   engine: EnginePort;
@@ -66,6 +80,7 @@ export class AudioController extends TypedEmitter<AudioEvents> {
   /** Идёт затухание после остановки: статус «играет» держится, пока звук ещё слышен (§5.6). */
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
   private fadeEndsAt = 0;
+  private previewTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: AudioControllerDeps) {
     super();
@@ -197,17 +212,51 @@ export class AudioController extends TypedEmitter<AudioEvents> {
     else this.push();
   }
 
-  /** Подписка на TimerEngine: sessionStarted (Focus / перерыв) и state (остановка сессии); восстановленная сессия. */
+  /**
+   * Сигнал начала/конца интервала (signalEnabled, signalVolume). Не зависит от mute и общей громкости,
+   * микс и затухание не трогает. Отправлен ли он движку.
+   */
+  signal(kind: SignalKind, opts: { force?: boolean } = {}): boolean {
+    const s = this.deps.settings.get();
+    if (!s.signalEnabled && !opts.force) return false;
+    this.deps.engine.send({ type: 'signal', kind, volume: s.signalVolume });
+    return true;
+  }
+
+  /** «Прослушать» в настройках: сигнал старта, затем сигнал конца — даже если сигнал выключен. */
+  previewSignal(): void {
+    if (this.previewTimer) clearTimeout(this.previewTimer);
+    this.signal('start', { force: true });
+    this.previewTimer = setTimeout(() => {
+      this.previewTimer = null;
+      this.signal('end', { force: true });
+    }, PREVIEW_GAP_MS);
+    this.previewTimer.unref?.();
+  }
+
+  /**
+   * Подписка на TimerEngine: sessionStarted (Focus / перерыв), intervalEnded (сигнал конца) и state
+   * (остановка сессии); восстановленная сессия. Таймер шлёт intervalEnded → sessionStarted → state
+   * одного перехода подряд — по этому порядку старт после конца отличается от отдельного старта.
+   */
   bindTimer(timer: TimerEventsSource): Unsubscribe {
     const current = timer.snapshot();
     let last: TimerStatus = current.status;
+    /** чем закончился интервал в текущем переходе таймера (до его state) */
+    let endedNow: SessionRecord['endReason'] | null = null;
     this.resumeSession(current);
     const offs = [
+      timer.on('intervalEnded', (record) => {
+        endedNow = record.endReason;
+        if (SIGNAL_END_REASONS.includes(record.endReason)) this.signal('end');
+      }),
       timer.on('sessionStarted', (snap) => {
+        if (endedNow === null || SIGNAL_START_AFTER.includes(endedNow)) this.signal('start');
         if (snap.kind === 'focus') this.applyFocusBehavior();
         else this.applyBreakBehavior();
       }),
       timer.on('state', (snap) => {
+        endedNow = null;
         if (snap.status === 'idle' && last !== 'idle') this.onSessionStopped();
         last = snap.status;
       }),
@@ -309,6 +358,8 @@ export class AudioController extends TypedEmitter<AudioEvents> {
         this.error = report.message;
         this.emitStatus();
         return;
+      case 'signalFailed':
+        return; // только в журнал (ipc.ts): фоновый звук и статус не меняются
     }
   }
 

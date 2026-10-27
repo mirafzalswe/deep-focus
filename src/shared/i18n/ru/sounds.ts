@@ -75,5 +75,10 @@ export const sounds = {
     playback: 'Воспроизведение',
     fadeOut: 'Затухание при остановке',
     fadeOutValue: '{sec} с',
+    signalTitle: 'Сигнал',
+    signalEnabled: 'Звуковой сигнал в начале и в конце интервала',
+    signalHint: 'Короткий сигнал при старте Focus и перерыва и когда интервал дошёл до конца. Звучит и при выключенном звуке.',
+    signalVolume: 'Громкость сигнала',
+    signalPreview: 'Прослушать',
   },
 };

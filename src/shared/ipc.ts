@@ -53,6 +53,8 @@ export const IPC = {
     savePreset: 'audio:savePreset',
     deletePreset: 'audio:deletePreset',
     addCustomSound: 'audio:addCustomSound',
+    /** «Прослушать» сигнал начала и конца интервала */
+    previewSignal: 'audio:previewSignal',
     /** рассылка: AudioStatus */
     statusChanged: 'audio:statusChanged',
     /** main → скрытое окно audio: команда движку */

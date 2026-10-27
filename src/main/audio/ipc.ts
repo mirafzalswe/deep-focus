@@ -33,7 +33,17 @@ export function registerAudio(ctx: MainContext): void {
 
   let host: EngineHost | null = null;
   const audio = new AudioController({
-    engine: { send: (cmd) => host?.send(cmd) },
+    engine: {
+      send: (cmd) => {
+        if (cmd.type !== 'signal') return host?.send(cmd);
+        // Сигнал необязателен: его сбой не должен мешать звуку сессии и остальным подписчикам таймера
+        try {
+          host?.send(cmd);
+        } catch (err) {
+          logger.warn('audio', `signal ${cmd.kind} failed`, err);
+        }
+      },
+    },
     library,
     presets: { get: (id) => storage.soundPresets.get(id) },
     settings: {
@@ -47,6 +57,7 @@ export function registerAudio(ctx: MainContext): void {
     onReport: (r) => {
       if (r.type === 'trackFailed') logger.warn('audio', `sound ${r.soundId} failed: ${r.reason}`);
       if (r.type === 'error') logger.error('audio', `engine: ${r.message}`);
+      if (r.type === 'signalFailed') logger.warn('audio', `signal failed: ${r.message}`);
       audio.handleEngineReport(r);
     },
     onFatal: (message) => {
@@ -80,6 +91,7 @@ export function registerAudio(ctx: MainContext): void {
   );
   handle<[number]>(IPC.audio.setMaster, [v.num(0, 1)], (vol) => audio.setMaster(vol));
   handle<[]>(IPC.audio.toggleMute, [], () => audio.toggleMute());
+  handle<[]>(IPC.audio.previewSignal, [], () => audio.previewSignal());
   handle<[]>(IPC.audio.presets, [], () => storage.soundPresets.list());
   handle<[unknown]>(IPC.audio.savePreset, [isPlainObject], (p) => saveSoundPreset(storage, p));
   handle<[string]>(IPC.audio.deletePreset, [v.id()], (id) => {

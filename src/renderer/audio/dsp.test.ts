@@ -1,6 +1,6 @@
 // Чистая обработка звука движка (§5.2, §5.5): шумы без файлов, петли без щелчка на стыке, обрезка тишины.
 import { describe, expect, it } from 'vitest';
-import { fileLoop, makeSeamlessLoop, noiseLoop, seededRandom, trimSilence } from './dsp';
+import { fileLoop, makeSeamlessLoop, noiseLoop, seededRandom, signalLength, signalNotes, trimSilence } from './dsp';
 
 const RATE = 8000;
 
@@ -78,5 +78,29 @@ describe('петля из файла', () => {
     const ch = Float32Array.from({ length: RATE }, (_, i) => 0.5 * Math.sin(i / 3));
     const [loop] = fileLoop([ch], RATE);
     expect(loop!.length).toBeGreaterThanOrEqual(Math.floor((RATE * 2) / 3) - 2);
+  });
+});
+
+describe('сигнал начала и конца интервала', () => {
+  it('старт — два восходящих тона, конец — три нисходящих', () => {
+    const start = signalNotes('start');
+    const end = signalNotes('end');
+    expect(start).toHaveLength(2);
+    expect(start[1]!.freq).toBeGreaterThan(start[0]!.freq);
+    expect(end).toHaveLength(3);
+    expect(end[1]!.freq).toBeLessThan(end[0]!.freq);
+    expect(end[2]!.freq).toBeLessThan(end[1]!.freq);
+  });
+
+  it('короткий (0.5–1.5 с) и мягкий: атака не короче 15 мс, ноты идут по порядку', () => {
+    for (const kind of ['start', 'end'] as const) {
+      const notes = signalNotes(kind);
+      expect(signalLength(kind)).toBeGreaterThanOrEqual(0.5);
+      expect(signalLength(kind)).toBeLessThanOrEqual(1.5);
+      for (let i = 0; i < notes.length; i++) {
+        expect(notes[i]!.attack).toBeGreaterThanOrEqual(0.015);
+        if (i > 0) expect(notes[i]!.at).toBeGreaterThan(notes[i - 1]!.at);
+      }
+    }
   });
 });

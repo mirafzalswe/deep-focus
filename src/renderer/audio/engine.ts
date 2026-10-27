@@ -1,11 +1,18 @@
 // Звуковой движок скрытого окна audio (Web Audio). Исполняет декларативные команды main:
-// apply — «вот какие дорожки и с какой громкостью должны звучать», probe — проверить, что файлы декодируются.
+// apply — «вот какие дорожки и с какой громкостью должны звучать», probe — проверить, что файлы декодируются,
+// signal — короткий сигнал начала/конца интервала.
 // Дорожка = AudioBufferSourceNode (loop) → GainNode → master GainNode → выход.
+// Сигнал — в своём AudioContext: mute, мастер, затухание и засыпание фонового контекста его не касаются.
 import type { AudioEngineCommand, AudioEngineReport, EngineSource } from '@shared/types';
-import { fileLoop, noiseLoop } from './dsp';
+import { fileLoop, noiseLoop, signalLength, signalNotes } from './dsp';
 
 type Apply = Extract<AudioEngineCommand, { type: 'apply' }>;
 type Probe = Extract<AudioEngineCommand, { type: 'probe' }>;
+type Signal = Extract<AudioEngineCommand, { type: 'signal' }>;
+
+/** Пик сигнала при громкости 1 — с запасом, чтобы поверх фона не было перегруза. */
+const SIGNAL_PEAK = 0.5;
+const MAX_SIGNAL_LOG = 20;
 
 /** Смена громкости — плавно, чтобы не было щелчков. */
 const GAIN_SMOOTHING_SEC = 0.05;
@@ -42,12 +49,17 @@ export class AudioEngine {
   private readonly buffers = new Map<string, Promise<AudioBuffer>>();
   private playing = false;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private signalCtx: AudioContext | null = null;
+  private signalSleep: ReturnType<typeof setTimeout> | null = null;
+  /** последние сигналы — для e2e */
+  private readonly signalLog: { kind: Signal['kind']; volume: number; at: number }[] = [];
 
   constructor(private readonly report: (r: AudioEngineReport) => void) {}
 
   handle(cmd: AudioEngineCommand): void {
     try {
       if (cmd.type === 'apply') this.apply(cmd);
+      else if (cmd.type === 'signal') this.signal(cmd);
       else void this.probe(cmd);
     } catch (err) {
       this.report({ type: 'error', message: err instanceof Error ? err.message : String(err) });
@@ -68,7 +80,68 @@ export class AudioEngine {
         loop: v.source?.loop ?? false,
         duration: v.source?.buffer?.duration ?? 0,
       })),
+      signals: this.signalLog.map((s) => ({ ...s })),
+      signalContext: this.signalCtx?.state ?? 'none',
     };
+  }
+
+  /** Сигнал начала/конца интервала: ноты-осцилляторы с огибающей; ошибка — только отчёт signalFailed. */
+  private signal(cmd: Signal): void {
+    try {
+      this.signalCtx ??= new AudioContext({ latencyHint: 'interactive' });
+      const ctx = this.signalCtx;
+      if (ctx.state === 'suspended') void ctx.resume().catch((err: unknown) => this.signalFailed(err));
+      const volume = Math.min(1, Math.max(0, cmd.volume)) * SIGNAL_PEAK;
+      const t0 = ctx.currentTime + 0.03;
+      const out = ctx.createGain();
+      out.gain.value = 1;
+      out.connect(ctx.destination);
+      for (const n of signalNotes(cmd.kind)) {
+        const start = t0 + n.at;
+        const peakAt = start + n.attack;
+        const end = peakAt + n.decay;
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0, start);
+        env.gain.linearRampToValueAtTime(volume * n.peak, peakAt);
+        env.gain.exponentialRampToValueAtTime(0.0001, end);
+        env.gain.linearRampToValueAtTime(0, end + 0.02);
+        env.connect(out);
+        // основной тон + тихая октава: мягкий «колокольчик» вместо голого синуса
+        for (const [mult, level] of [
+          [1, 1],
+          [2, 0.12],
+        ] as const) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = n.freq * mult;
+          const g = ctx.createGain();
+          g.gain.value = level;
+          osc.connect(g).connect(env);
+          osc.start(start);
+          osc.stop(end + 0.05);
+          osc.onended = () => {
+            osc.disconnect();
+            g.disconnect();
+          };
+        }
+      }
+      const totalMs = (signalLength(cmd.kind) + 0.2) * 1000;
+      setTimeout(() => out.disconnect(), totalMs);
+      // Контекст сигнала засыпает, когда отзвучал последний сигнал
+      if (this.signalSleep) clearTimeout(this.signalSleep);
+      this.signalSleep = setTimeout(() => {
+        this.signalSleep = null;
+        void ctx.suspend().catch(() => undefined);
+      }, totalMs + 200);
+      this.signalLog.push({ kind: cmd.kind, volume: cmd.volume, at: Date.now() });
+      if (this.signalLog.length > MAX_SIGNAL_LOG) this.signalLog.shift();
+    } catch (err) {
+      this.signalFailed(err);
+    }
+  }
+
+  private signalFailed(err: unknown): void {
+    this.report({ type: 'signalFailed', message: (err instanceof Error ? err.message : String(err)).slice(0, 1000) });
   }
 
   private context(): { ctx: AudioContext; master: GainNode } {
